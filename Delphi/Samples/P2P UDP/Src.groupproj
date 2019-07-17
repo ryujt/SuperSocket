@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{7E618B59-99B6-41B2-BA3C-59F526AB98DC}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Server\P2P_Server.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Client\Client.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="P2P_Server">
+        <MSBuild Projects="Server\P2P_Server.dproj"/>
+    </Target>
+    <Target Name="P2P_Server:Clean">
+        <MSBuild Projects="Server\P2P_Server.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="P2P_Server:Make">
+        <MSBuild Projects="Server\P2P_Server.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Client">
+        <MSBuild Projects="Client\Client.dproj"/>
+    </Target>
+    <Target Name="Client:Clean">
+        <MSBuild Projects="Client\Client.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Client:Make">
+        <MSBuild Projects="Client\Client.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="P2P_Server;Client"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="P2P_Server:Clean;Client:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="P2P_Server:Make;Client:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
