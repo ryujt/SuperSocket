@@ -8,53 +8,44 @@ uses
 
 const
   /// Packet size limitation including header.
-  PACKET_SIZE = 4096;
+  PACKET_SIZE = 8192;
 
   /// Concurrent connection limitation
-  CONNECTION_POOL_SIZE = 4096;
+  CONNECTION_POOL_SIZE = 512;
 
   /// Buffer size of TPacketReader
   PACKETREADER_PAGE_SIZE = PACKET_SIZE * 16;
 
 type
-  TPacketDirection = (pdNone, pdAll, pdOther);
   TIOStatus = (ioStart, ioStop, ioAccepted, ioSend, ioRecv, ioDisconnect);
 
   PPacket = ^TPacket;
 
   {*
-    [Packet] = [Header] [PacketType: byte] [Data]
-    [Header] = [Direction: 4bits] [Size: 12bits]
+    [Packet] = [PacketSize:word] [PacketType: byte] [Data]
   }
   TPacket = packed record
   strict private
     function GetData: pointer;
-    function GetDirection: TPacketDirection;
     function GetDataSize: word;
-    procedure SetDirection(const Value: TPacketDirection);
     procedure SetDataSize(const Value: word);
-    function GetSize: word;
     function GetText: string;
   public
-    Header : word;
+    PacketSize : word;
     PacketType : byte;
     DataStart : byte;
 
-    class function GetPacket(ADirection:TPacketDirection; APacketType:byte; AData:pointer; ASize:integer):PPacket; overload; static;
-    class function GetPacket(ADirection:TPacketDirection; APacketType:byte; const AText:string):PPacket; overload; static;
+    class function GetPacket(APacketType:byte; AData:pointer; ASize:integer):PPacket; overload; static;
+    class function GetPacket(APacketType:byte; const AText:string):PPacket; overload; static;
 
     procedure Clear;
-    function Clone:PPacket;
+    procedure Clone(APacket:PPacket); overload;
+    function Clone:PPacket; overload;
   public
-    property Direction : TPacketDirection read GetDirection write SetDirection;
-
     property Data : pointer read GetData;
 
     /// Size of [Data]
     property DataSize : word read GetDataSize write SetDataSize;
-
-    /// Size of [Packet]
-    property Size : word read GetSize;
 
     /// Convert [Data] to string
     property Text : string read GetText;
@@ -134,20 +125,9 @@ type
     RoomID : string;
     Room : TObject;
     UserID : string;
+    UserPW : string;
     UserName : string;
     UserLevel : integer;
-
-    /// Local IP address that TSuperSocketClient send after connected.
-    LocalIP : string;
-
-    /// for P2P hole punching
-    LocalPort : integer;
-    RemotePort : integer;
-
-    property ID : integer read FID;
-
-    /// IP address of remote host.
-    property RemoteIP : string read FRemoteIP;
 
     property IsConnected : boolean read GetIsConnected;
 
@@ -257,7 +237,6 @@ type
   end;
 
   TSuperSocketServerEvent = procedure (AConnection:TConnection) of object;
-
   TSuperSocketServerReceivedEvent = procedure (AConnection:TConnection; APacket:PPacket) of object;
 
   TSuperSocketServer = class (TComponent)
@@ -441,14 +420,19 @@ end;
 
 procedure TPacket.Clear;
 begin
-  Header := 0;
+  PacketSize := 0;
   PacketType := 0;
 end;
 
 function TPacket.Clone: PPacket;
 begin
-  GetMem(Result, Size);
-  Move(Self, Result^, Size);
+  GetMem(Result, PacketSize);
+  Move(Self, Result^, PacketSize);
+end;
+
+procedure TPacket.Clone(APacket: PPacket);
+begin
+  Move(Self, APacket^, PacketSize);
 end;
 
 function TPacket.GetData: pointer;
@@ -456,42 +440,30 @@ begin
   Result := @DataStart;
 end;
 
-function TPacket.GetDirection: TPacketDirection;
-begin
-  Result := TPacketDirection( (Header and $F000) shr 12 );
-end;
-
-class function TPacket.GetPacket(ADirection: TPacketDirection;
-  APacketType: byte; const AText: string): PPacket;
+class function TPacket.GetPacket(APacketType: byte; const AText: string): PPacket;
 var
   ssData : TStringStream;
 begin
   if AText = '' then begin
-    Result := TPacket.GetPacket(ADirection, APacketType, nil, 0);
+    Result := TPacket.GetPacket(APacketType, nil, 0);
     Exit;
   end;
 
   ssData := TStringStream.Create(AText);
   try
-    Result := TPacket.GetPacket(ADirection, APacketType, ssData.Memory, ssData.Size);
+    Result := TPacket.GetPacket(APacketType, ssData.Memory, ssData.Size);
   finally
     ssData.Free;
   end;
 end;
 
-class function TPacket.GetPacket(ADirection:TPacketDirection; APacketType:byte; AData:pointer; ASize:integer): PPacket;
+class function TPacket.GetPacket(APacketType:byte; AData:pointer; ASize:integer): PPacket;
 begin
   GetMem(Result, ASize + SizeOf(Word) + SizeOf(Byte));
-  Result^.Direction := ADirection;
   Result^.PacketType := APacketType;
   Result^.DataSize := ASize;
 
   if ASize > 0 then Move(AData^, Result^.Data^, ASize);
-end;
-
-function TPacket.GetSize: word;
-begin
-  Result := GetDataSize + SizeOf(Header) + SizeOf(PacketType);
 end;
 
 function TPacket.GetText: string;
@@ -511,20 +483,12 @@ end;
 
 function TPacket.GetDataSize: word;
 begin
-  Result := Header and $0FFF;
-end;
-
-procedure TPacket.SetDirection(const Value: TPacketDirection);
-begin
-  Header := ((Byte(Value) and $0F) shl 12) or (Header and $0FFF);
+  Result := PacketSize - SizeOf(Word) - SizeOf(Byte);
 end;
 
 procedure TPacket.SetDataSize(const Value: word);
 begin
-  if Value > (PACKET_SIZE - SizeOf(Header) - SizeOf(PacketType)) then
-    raise Exception.Create('TPacket.SetSize - Message');
-
-  Header := (Header and $F000) or (Value and $0FFF);
+  PacketSize := Value + SizeOf(Word) + SizeOf(Byte);
 end;
 
 { TMemoryPool }
@@ -558,8 +522,6 @@ begin
   inherited;
 
   FSocket := 0;
-  RoomID := '';
-  Room := nil;
 
   FPacketReader := TPacketReader.Create;
 
@@ -581,23 +543,20 @@ end;
 procedure TConnection.do_Init;
 begin
   FID := 0;
+  FRemoteIP := '';
+  RoomID := '';
+  Room := nil;
+  UserData := nil;
+  UserID:= '';
+  UserName := '';
+  UserPW := '';
+  UserLevel := 0;
+  IsLogined := false;
 
   IdleCount := 0;
 
   if FSocket <> INVALID_SOCKET then closesocket(FSocket);
   FSocket := INVALID_SOCKET;
-
-  IsLogined := false;
-
-  LocalIP := '';
-  FRemoteIP := '';
-
-  LocalPort := 0;
-  RemotePort := 0;
-
-  UserData := nil;
-  UserName := '';
-  UserLevel := 0;
 
   FPacketReader.Clear;
 end;
@@ -606,6 +565,8 @@ procedure TConnection.do_PacketIn(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
+  IdleCount := 0;
+
   FPacketReader.Write(UserName, AData, ASize);
   if FPacketReader.canRead then begin
     PacketPtr := FPacketReader.Read;
@@ -621,25 +582,16 @@ begin
 end;
 
 function TConnection.GetText: string;
+const
+  fmt = '{"id": %s, "user_id": "%s", "user_name": "%s", "user_level": %d}';
 begin
-  Result := 'ID=' + IntToStr(FID);
-
-  if LocalIP <> '' then Result := Result + '<rYu>LocalIP=' + LocalIP;
-  if LocalPort <> 0 then Result := Result + '<rYu>LocalPort=' + IntToStr(LocalPort);
-
-  if RemoteIP <> '' then Result := Result + '<rYu>RemoteIP=' + FRemoteIP;
-  if RemotePort <> 0 then Result := Result + '<rYu>RemotePort=' + IntToStr(RemotePort);
-
-  if UserID <> '' then Result := Result + '<rYu>UserID=' + UserID;
-  if UserName <> '' then Result := Result + '<rYu>UserName=' + UserName;
-
-  if UserLevel <> 0 then Result := Result + '<rYu>UserLevel=' + IntToStr(UserLevel);
+  Result := Format(fmt, [FID, UserID, UserName, UserLevel]);
 end;
 
 procedure TConnection.Send(APacket: PPacket);
 begin
   if FSocket <> INVALID_SOCKET then
-    FSuperSocketServer.FCompletePort.Send(Self, APacket, APacket^.Size);
+    FSuperSocketServer.FCompletePort.Send(Self, APacket, APacket^.PacketSize);
 end;
 
 { TIODataPool }
@@ -1076,7 +1028,7 @@ begin
           if Connection = nil then Continue;
           if Connection.IsLogined = false then Continue;
 
-          if InterlockedIncrement(Connection.IdleCount) > 2 then begin
+          if InterlockedIncrement(Connection.IdleCount) > 4 then begin
             {$IFDEF DEBUG}
             Trace( Format('Connection is in the idle status - UserID: %s', [Connection.UserID]) );
             {$ENDIF}
@@ -1085,7 +1037,7 @@ begin
           end;
         end;
 
-        ASimpleThread.Sleep(10000);
+        ASimpleThread.Sleep(5000);
       end;
     end
   );
@@ -1229,7 +1181,7 @@ begin
   end;
 
   PacketPtr := Pointer(FOffsetPtr);
-  Result := FBufferSize >= PacketPtr^.Size;
+  Result := FBufferSize >= PacketPtr^.PacketSize;
 end;
 
 procedure TPacketReader.Clear;
@@ -1270,9 +1222,9 @@ begin
 
   Result := Pointer(FOffsetPtr);
 
-  FBufferSize := FBufferSize - Result^.Size;
-  FOffset := FOffset + Result^.Size;
-  FOffsetPtr := FOffsetPtr + Result^.Size;
+  FBufferSize := FBufferSize - Result^.PacketSize;
+  FOffset := FOffset + Result^.PacketSize;
+  FOffsetPtr := FOffsetPtr + Result^.PacketSize;
 end;
 
 procedure TPacketReader.VerifyPacket(const AID:string);
@@ -1283,8 +1235,8 @@ begin
 
   PacketPtr := Pointer(FOffsetPtr);
 
-  if PacketPtr.Size > PACKET_SIZE then begin
-    Trace( Format('TPacketReader.VerifyPacket (%s) - PacketPtr.Size(%d) > PACKET_SIZE', [AID, PacketPtr.Size]) );
+  if PacketPtr.PacketSize > PACKET_SIZE then begin
+    Trace( Format('TPacketReader.VerifyPacket (%s) - PacketPtr.Size(%d) > PACKET_SIZE', [AID, PacketPtr.PacketSize]) );
     Clear;
   end;
 end;
@@ -1391,14 +1343,14 @@ begin
         if FSocket <> INVALID_SOCKET then begin
           Send(nil);
 
-          // 서버로부터 최소 10초 이상 응답이 없었다면 접속을 끝는다.
-          if InterlockedIncrement(FIdleCount) > 1 then begin
+          // 서버로부터 최소 20초 이상 응답이 없었다면 접속을 끝는다.
+          if InterlockedIncrement(FIdleCount) > 4 then begin
             Disconnect;
             if Assigned(FOnDisconnected) then FOnDisconnected(Self);
           end;
         end;
 
-        ASimpleThread.Sleep(10000);
+        ASimpleThread.Sleep(5000);
       end;
     end
   );
@@ -1477,7 +1429,7 @@ end;
 procedure TClientSocketUnit.Send(APacket: PPacket);
 begin
   if APacket = nil then APacket := NilPacket;  
-  if WinSock2.send(FSocket, APacket^, APacket^.Size, 0) = SOCKET_ERROR then do_FireDisconnectedEvent;
+  if WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) = SOCKET_ERROR then do_FireDisconnectedEvent;
 end;
 
 { TClientScheduler }
@@ -1679,17 +1631,13 @@ begin
 end;
 
 initialization
-  NilPacket := TPacket.GetPacket(pdNone, 0, nil, 0);
+  NilPacket := TPacket.GetPacket(0, nil, 0);
 
   if WSAStartup(WINSOCK_VERSION, WSAData) <> 0 then
     raise Exception.Create(SysErrorMessage(GetLastError));
 
 {$IFDEF DEBUG}
   Packet.Clear;
-
-  Packet.Direction := pdNone;  Assert(Packet.Direction = pdNone, 'Packet.Direction <> pdNone');
-  Packet.Direction := pdAll;  Assert(Packet.Direction = pdAll, 'Packet.Direction <> pdAll');
-  Packet.Direction := pdOther;  Assert(Packet.Direction = pdOther, 'Packet.Direction <> pdOther');
 
   Packet.DataSize := 0;  Assert(Packet.DataSize = 0, 'Packet.Direction <> 0');
   Packet.DataSize := 10;  Assert(Packet.DataSize = 10, 'Packet.Direction <> 10');
