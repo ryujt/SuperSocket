@@ -262,7 +262,7 @@ type
     procedure SetUseNagel(const Value: boolean);
     function GetPort: integer;
   public
-    constructor Create(AOwner: TComponent); override;
+    constructor Create(AOwner:TComponent; AIdleCheck:boolean=true); reintroduce;
     destructor Destroy; override;
 
     procedure Start;
@@ -299,7 +299,7 @@ type
     FOnReceived: TSuperSocketClientReceivedEvent;
     FUseNagel: boolean;
   public
-    constructor Create;
+    constructor Create(AIdleCheck:boolean); reintroduce;
     destructor Destroy; override;
 
     function Connect(const AHost:string; APort:integer):boolean;
@@ -360,6 +360,7 @@ type
 
   TSuperSocketClient = class (TComponent)
   private
+    FIdleCheck : boolean;
     FClientScheduler : TClientScheduler;
     procedure on_FClientScheduler_TaskConnected(AClientSocketUnit:TClientSocketUnit);
     procedure on_FClientScheduler_TaskDisconnect(Sender:TObject);
@@ -371,7 +372,7 @@ type
     FOnReceived: TSuperSocketClientReceivedEvent;
     function GetConnected: boolean;
   public
-    constructor Create(AOwner: TComponent); override;
+    constructor Create(AOwner:TComponent; AIdleCheck:boolean=true); reintroduce;
     destructor Destroy; override;
 
     function Connect(const AHost:string; APort:integer):boolean;
@@ -998,9 +999,9 @@ end;
 
 { TSuperSocketServer }
 
-constructor TSuperSocketServer.Create(AOwner: TComponent);
+constructor TSuperSocketServer.Create(AOwner: TComponent; AIdleCheck:boolean);
 begin
-  inherited;
+  inherited Create(AOwner);
 
   FConnectionList := TConnectionList.Create(Self);
 
@@ -1013,6 +1014,11 @@ begin
   FCompletePort.OnAccepted   := on_FCompletePort_Accepted;
   FCompletePort.OnReceived   := on_FCompletePort_Received;
   FCompletePort.OnDisconnect := on_FCompletePort_Disconnect;
+
+  if not AIdleCheck then begin
+    FIdleCountThread := nil;
+    Exit;
+  end;
 
   FIdleCountThread := TSimpleThread.Create(
     'TSuperSocketServer.FIdleCountThread',
@@ -1047,9 +1053,11 @@ destructor TSuperSocketServer.Destroy;
 begin
   FListener.Stop;
 
-  FIdleCountThread.TerminateNow;
+  if FIdleCountThread <> nil then begin
+    FIdleCountThread.TerminateNow;
+    FreeAndNil(FIdleCountThread);
+  end;
 
-  FreeAndNil(FIdleCountThread);
   FreeAndNil(FConnectionList);
   FreeAndNil(FListener);
   FreeAndNil(FCompletePort);
@@ -1324,9 +1332,9 @@ begin
   end;
 end;
 
-constructor TClientSocketUnit.Create;
+constructor TClientSocketUnit.Create(AIdleCheck:boolean);
 begin
-  inherited;
+  inherited Create;
 
   FUseNagel := false;
   FSocket := INVALID_SOCKET;
@@ -1334,6 +1342,11 @@ begin
   FPacketReader := TPacketReader.Create;
 
   FIdleCount := 0;
+
+  if not AIdleCheck then begin
+    FIdleCountThread := nil;
+    Exit;
+  end;
 
   FIdleCountThread := TSimpleThread.Create(
     'TClientSocketUnit.FIdleCountThread',
@@ -1362,9 +1375,11 @@ begin
 
   closesocket(FSocket);
 
-  FIdleCountThread.TerminateNow;
+  if FIdleCountThread <> nil then begin
+    FIdleCountThread.TerminateNow;
+    FreeAndNil(FIdleCountThread);
+  end;
 
-  FreeAndNil(FIdleCountThread);
   FreeAndNil(FPacketReader);
 
   inherited;
@@ -1565,7 +1580,7 @@ function TSuperSocketClient.Connect(const AHost: string; APort: integer): boolea
 var
   ClientSocketUnit : TClientSocketUnit;
 begin
-  ClientSocketUnit := TClientSocketUnit.Create;
+  ClientSocketUnit := TClientSocketUnit.Create(FIdleCheck);
   ClientSocketUnit.UseNagel := FUseNagle;
 
   if not ClientSocketUnit.Connect(AHost, APort) then begin
@@ -1580,10 +1595,11 @@ begin
   Result := true;
 end;
 
-constructor TSuperSocketClient.Create(AOwner: TComponent);
+constructor TSuperSocketClient.Create(AOwner:TComponent; AIdleCheck:boolean);
 begin
-  inherited;
+  inherited Create(AOwner);
 
+  FIdleCheck := AIdleCheck;
   FUseNagle := false;
 
   FClientScheduler := TClientScheduler.Create;
