@@ -3,7 +3,7 @@ unit SuperSocket;
 interface
 
 uses
-  DebugTools, SimpleThread, DynamicQueue, SuspensionQueue,
+  DebugTools, SimpleThread, DynamicQueue,
   Windows, SysUtils, Classes, WinSock2, AnsiStrings;
 
 const
@@ -132,6 +132,7 @@ type
     property IsConnected : boolean read GetIsConnected;
 
     /// Information of TConnection object.
+    property ID : integer read FID;
     property Text : string read GetText;
   end;
 
@@ -220,7 +221,6 @@ type
     FID : integer;
     FCount : integer;
     FConnections : array [0..CONNECTION_POOL_SIZE-1] of TConnection;
-    function GetCount:integer;
     function GetConnection(AIndex:integer):TConnection;
   private
     procedure TerminateAll;
@@ -232,7 +232,7 @@ type
     constructor Create(ASuperSocketServer:TSuperSocketServer); reintroduce;
     destructor Destroy; override;
   public
-    property Count : integer read GetCount;
+    property Count : integer read FCount;
     property Items[AIndex:integer] : TConnection read GetConnection;
   end;
 
@@ -285,107 +285,98 @@ type
 
   TClientSocketUnit = class
   private
+    FIdleCheck : boolean;
+    FUseNagel: boolean;
     FIdleCount : integer;
-    FIdleCountThread : TSimpleThread;
-  private
     FSocket : TSocket;
     FPacketReader : TPacketReader;
-    procedure do_FireDisconnectedEvent;
-  strict private
-    FSimpleThread : TSimpleThread;
-    procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
   private
-    FOnDisconnected: TNotifyEvent;
     FOnReceived: TSuperSocketClientReceivedEvent;
-    FUseNagel: boolean;
   public
-    constructor Create(AIdleCheck:boolean); reintroduce;
+    constructor Create(AUseNagel:boolean); reintroduce;
     destructor Destroy; override;
 
     function Connect(const AHost:string; APort:integer):boolean;
     procedure Disconnect;
 
-    function Receive:PPacket;
+    procedure ReceivePacket;
     procedure Send(APacket:PPacket);
-  public
-    property UseNagel : boolean read FUseNagel write FUseNagel;
-  public
-    property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
-    property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
   end;
 
-  TScheduleType = (stNone, stConnected, stDisconnect, stSend, stDisconnected, stTerminate);
+  TScheduleType = (stConnect, stDisconnect, stSend, stTerminate);
 
   TSchedule = class
   private
   public
     ScheduleType : TScheduleType;
-    ClientSocketUnit : TClientSocketUnit;
+    Host : string;
+    Port : integer;
     PacketPtr : PPacket;
   end;
 
   TClientSchedulerOnConnectedEvent = procedure (AClientSocketUnit:TClientSocketUnit) of object;
 
   TClientScheduler = class
-  strict private
-    FQueue : TSuspensionQueue<TSchedule>;
-    procedure do_Send(APacket:PPacket);
   private
+    FIdleCheck : boolean;
+    FUseNagle: boolean;
+    FQueue : TDynamicQueue;
     FClientSocketUnit : TClientSocketUnit;
-    procedure on_FClientSocketUnit_Disconnected(Sender:TObject);
+    procedure do_Send(APacket:PPacket);
+    procedure do_Connect(const AHost: string; APort: integer);
+    procedure do_Disconnect;
   strict private
     FSimpleThread : TSimpleThread;
     procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
   private
-    FOnTaskConnected: TClientSchedulerOnConnectedEvent;
-    FOnTaskDisconnect: TNotifyEvent;
-    FOnTaskDisconnected: TNotifyEvent;
+    FOnConnected: TNotifyEvent;
+    FOnDisconnected: TNotifyEvent;
+    FOnReceived: TSuperSocketClientReceivedEvent;
   public
     constructor Create;
     destructor Destroy; override;
 
-    procedure TaskConnected(AClientSocketUnit:TClientSocketUnit);
+    procedure TaskConnect(const AHost: string; APort: integer);
     procedure TaskDisconnect;
-    procedure TaskDisconnected;
     procedure TaskSend(APacket:PPacket);
     procedure TaskTerminate;
   public
     procedure SetSocketUnit(AClientSocketUnit:TClientSocketUnit);
     procedure ReleaseSocketUnit;
   public
-    property OnTaskConnected : TClientSchedulerOnConnectedEvent read FOnTaskConnected write FOnTaskConnected;
-    property OnTaskDisconnect : TNotifyEvent read FOnTaskDisconnect write FOnTaskDisconnect;
-    property OnTaskDisconnected : TNotifyEvent read FOnTaskDisconnected write FOnTaskDisconnected;
+    property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
+    property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
+    property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
   end;
 
   TSuperSocketClient = class (TComponent)
   private
-    FIdleCheck : boolean;
     FClientScheduler : TClientScheduler;
-    procedure on_FClientScheduler_TaskConnected(AClientSocketUnit:TClientSocketUnit);
-    procedure on_FClientScheduler_TaskDisconnect(Sender:TObject);
-    procedure on_FClientScheduler_Disconnected(Sender:TObject);
   private
-    FUseNagle: boolean;
-    FOnConnected: TNotifyEvent;
-    FOnDisconnected: TNotifyEvent;
-    FOnReceived: TSuperSocketClientReceivedEvent;
     function GetConnected: boolean;
+    function GetUseNagle: boolean;
+    procedure SetUseNagle(const Value: boolean);
+    function GetOnConnected: TNotifyEvent;
+    function GetOnDisconnected: TNotifyEvent;
+    function GetOnReceived: TSuperSocketClientReceivedEvent;
+    procedure SetOnConnected(const Value: TNotifyEvent);
+    procedure SetOnDisconnected(const Value: TNotifyEvent);
+    procedure SetOnReceived(const Value: TSuperSocketClientReceivedEvent);
   public
     constructor Create(AOwner:TComponent; AIdleCheck:boolean=true); reintroduce;
     destructor Destroy; override;
 
-    function Connect(const AHost:string; APort:integer):boolean;
+    procedure Connect(const AHost:string; APort:integer);
     procedure Disconnect;
 
     procedure Send(APacket:PPacket);
   published
     property Connected : boolean read GetConnected;
-    property UseNagel : boolean read FUseNagle write FUseNagle;
+    property UseNagel : boolean read GetUseNagle write SetUseNagle;
   published
-    property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
-    property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
-    property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
+    property OnConnected : TNotifyEvent read GetOnConnected write SetOnConnected;
+    property OnDisconnected : TNotifyEvent read GetOnDisconnected write SetOnDisconnected;
+    property OnReceived : TSuperSocketClientReceivedEvent read GetOnReceived write SetOnReceived;
   end;
 
 implementation
@@ -934,6 +925,7 @@ begin
     if FID = 0 then Continue;
 
     if FConnections[DWord(FID) mod CONNECTION_POOL_SIZE].FID = 0 then begin
+      Inc(FCount);
       Result := FConnections[DWord(FID) mod CONNECTION_POOL_SIZE];
       Result.FID := FID;
       Result.FSocket := ASocket;
@@ -967,11 +959,6 @@ begin
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do FConnections[Loop].Free;
 
   inherited;
-end;
-
-function TConnectionList.GetCount: integer;
-begin
-  Result := FCount;
 end;
 
 function TConnectionList.GetConnection(AIndex: integer): TConnection;
@@ -1326,13 +1313,12 @@ begin
 
   if Result then begin
     SetSocketDelayOption(FSocket, FUseNagel);
-    FSimpleThread := TSimpleThread.Create('TClientSocketUnit.Connect', on_FSimpleThread_Execute);
   end else begin
     FSocket := INVALID_SOCKET;
   end;
 end;
 
-constructor TClientSocketUnit.Create(AIdleCheck:boolean);
+constructor TClientSocketUnit.Create(AUseNagel:boolean);
 begin
   inherited Create;
 
@@ -1342,44 +1328,36 @@ begin
   FPacketReader := TPacketReader.Create;
 
   FIdleCount := 0;
-
-  if not AIdleCheck then begin
-    FIdleCountThread := nil;
-    Exit;
-  end;
-
-  FIdleCountThread := TSimpleThread.Create(
-    'TClientSocketUnit.FIdleCountThread',
-    procedure (ASimpleThread:TSimpleThread)
-    begin
-      while ASimpleThread.Terminated = false do begin
-        if FSocket <> INVALID_SOCKET then begin
-          Send(nil);
-
-          // 서버로부터 최소 20초 이상 응답이 없었다면 접속을 끝는다.
-          if InterlockedIncrement(FIdleCount) > 4 then begin
-            Disconnect;
-            if Assigned(FOnDisconnected) then FOnDisconnected(Self);
-          end;
-        end;
-
-        ASimpleThread.Sleep(5000);
-      end;
-    end
-  );
+//
+//  if not AIdleCheck then begin
+//    FIdleCountThread := nil;
+//    Exit;
+//  end;
+//
+//  FIdleCountThread := TSimpleThread.Create(
+//    'TClientSocketUnit.FIdleCountThread',
+//    procedure (ASimpleThread:TSimpleThread)
+//    begin
+//      while ASimpleThread.Terminated = false do begin
+//        if FSocket <> INVALID_SOCKET then begin
+//          Send(nil);
+//
+//          // 서버로부터 최소 20초 이상 응답이 없었다면 접속을 끝는다.
+//          if InterlockedIncrement(FIdleCount) > 4 then begin
+//            Disconnect;
+//            if Assigned(FOnDisconnected) then FOnDisconnected(Self);
+//          end;
+//        end;
+//
+//        ASimpleThread.Sleep(5000);
+//      end;
+//    end
+//  );
 end;
 
 destructor TClientSocketUnit.Destroy;
 begin
-  if FSimpleThread <> nil then FSimpleThread.TerminateNow;
-
   closesocket(FSocket);
-
-  if FIdleCountThread <> nil then begin
-    FIdleCountThread.TerminateNow;
-    FreeAndNil(FIdleCountThread);
-  end;
-
   FreeAndNil(FPacketReader);
 
   inherited;
@@ -1391,95 +1369,80 @@ begin
   FSocket := INVALID_SOCKET;
 end;
 
-procedure TClientSocketUnit.do_FireDisconnectedEvent;
-begin
-  if FSocket = INVALID_SOCKET then Exit;
+//procedure TClientSocketUnit.on_FSimpleThread_Execute(
+//  ASimpleThread: TSimpleThread);
+//var
+//  PacketPtr : PPacket;
+//begin
+//  while not ASimpleThread.Terminated do begin
+//    PacketPtr := Receive;
+//
+//    if PacketPtr = nil then begin
+//      Sleep(1);
+//      Continue;
+//    end;
+//
+//    InterlockedExchange(FIdleCount, 0);
+//
+//    if Assigned(FOnReceived) and (PacketPtr^.DataSize > 0) then FOnReceived(Self, PacketPtr);
+//  end;
+//end;
 
-  closesocket(FSocket);
-  FSocket := INVALID_SOCKET;
-
-  if Assigned(FOnDisconnected) then FOnDisconnected(Self);
-end;
-
-procedure TClientSocketUnit.on_FSimpleThread_Execute(
-  ASimpleThread: TSimpleThread);
-var
-  PacketPtr : PPacket;
-begin
-  while not ASimpleThread.Terminated do begin
-    PacketPtr := Receive;
-
-    if PacketPtr = nil then begin
-      Sleep(1);
-      Continue;
-    end;
-
-    InterlockedExchange(FIdleCount, 0);
-
-    if Assigned(FOnReceived) and (PacketPtr^.DataSize > 0) then FOnReceived(Self, PacketPtr);
-  end;
-end;
-
-function TClientSocketUnit.Receive: PPacket;
+procedure TClientSocketUnit.ReceivePacket;
 var
   iRecv : integer;
   Buffer : array [0..PACKETREADER_PAGE_SIZE] of byte;
 begin
-  Result := nil;
-
-  if FSocket = INVALID_SOCKET then Exit;
-
-  iRecv := recv(FSocket, Buffer, SizeOf(Buffer), 0);
-
-  if iRecv = SOCKET_ERROR then begin
-    do_FireDisconnectedEvent;
-    Exit;
-  end;
-
-  FPacketReader.Write('TClientSocketUnit', @Buffer, iRecv);
-
-  Result := FPacketReader.Read;
+//  Result := nil;
+//
+//  if FSocket = INVALID_SOCKET then Exit;
+//
+//  iRecv := recv(FSocket, Buffer, SizeOf(Buffer), 0);
+//
+//  if iRecv = SOCKET_ERROR then begin
+//    do_FireDisconnectedEvent;
+//    Exit;
+//  end;
+//
+//  FPacketReader.Write('TClientSocketUnit', @Buffer, iRecv);
+//
+//  Result := FPacketReader.Read;
 end;
 
 procedure TClientSocketUnit.Send(APacket: PPacket);
 begin
   if APacket = nil then APacket := NilPacket;  
-  if WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) = SOCKET_ERROR then do_FireDisconnectedEvent;
+//  if WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) = SOCKET_ERROR then do_FireDisconnectedEvent;
 end;
 
 { TClientScheduler }
-
-procedure TClientScheduler.TaskConnected(AClientSocketUnit: TClientSocketUnit);
-var
-  Schedule : TSchedule;
-begin
-  AClientSocketUnit.OnDisconnected := on_FClientSocketUnit_Disconnected;
-
-  Schedule := TSchedule.Create;
-  Schedule.ScheduleType := stConnected;
-  Schedule.ClientSocketUnit := AClientSocketUnit;
-  FQueue.Push(Schedule);
-end;
 
 constructor TClientScheduler.Create;
 begin
   inherited;
 
   FClientSocketUnit := nil;
-
-  FQueue := TSuspensionQueue<TSchedule>.Create;
-
+  FQueue := TDynamicQueue.Create(true);
   FSimpleThread := TSimpleThread.Create('TClientScheduler.Create', on_FSimpleThread_Execute);
 end;
 
 destructor TClientScheduler.Destroy;
 begin
-  FSimpleThread.TerminateNow;
-
-  ReleaseSocketUnit;
-  if FQueue <> nil then FreeAndNil(FQueue);
+  FSimpleThread.Terminate;
+  TaskTerminate;
 
   inherited;
+end;
+
+procedure TClientScheduler.TaskConnect(const AHost: string; APort: integer);
+var
+  Schedule : TSchedule;
+begin
+  Schedule := TSchedule.Create;
+  Schedule.ScheduleType := stConnect;
+  Schedule.Host := AHost;
+  Schedule.Port := APort;
+  FQueue.Push(Schedule);
 end;
 
 procedure TClientScheduler.TaskDisconnect;
@@ -1491,13 +1454,25 @@ begin
   FQueue.Push(Schedule);
 end;
 
-procedure TClientScheduler.TaskDisconnected;
-var
-  Schedule : TSchedule;
+procedure TClientScheduler.do_Connect(const AHost: string; APort: integer);
 begin
-  Schedule := TSchedule.Create;
-  Schedule.ScheduleType := stDisconnected;
-  FQueue.Push(Schedule);
+  FClientSocketUnit := TClientSocketUnit.Create(FIdleCheck);
+  FClientSocketUnit.FIdleCheck := FIdleCheck;
+  FClientSocketUnit.FUseNagel := FUseNagle;
+  FClientSocketUnit.FOnReceived := FOnReceived;
+
+  if not FClientSocketUnit.Connect(AHost, APort) then begin
+    FreeAndNil(FClientSocketUnit);
+    Exit;
+  end;
+
+  if Assigned(FOnConnected) then FOnConnected(FClientSocketUnit)
+end;
+
+procedure TClientScheduler.do_Disconnect;
+begin
+  if Assigned(FOnDisconnected) then FOnDisconnected(FClientSocketUnit);
+  ReleaseSocketUnit;
 end;
 
 procedure TClientScheduler.do_Send(APacket: PPacket);
@@ -1509,41 +1484,36 @@ begin
   end;
 end;
 
-procedure TClientScheduler.on_FClientSocketUnit_Disconnected(Sender: TObject);
-begin
-  TaskDisconnected;
-end;
-
 procedure TClientScheduler.on_FSimpleThread_Execute(
   ASimpleThread: TSimpleThread);
 var
   Schedule : TSchedule;
 begin
   while not ASimpleThread.Terminated do begin
-    Schedule := FQueue.Pop;
-    try
-      case Schedule.ScheduleType of
-        stNone: ;
-        stConnected: if Assigned(FOnTaskConnected) then FOnTaskConnected(Schedule.ClientSocketUnit);
-        stDisconnect: if Assigned(FOnTaskDisconnect) then FOnTaskDisconnect(FClientSocketUnit);
-        stDisconnected: if Assigned(FOnTaskDisconnected) then FOnTaskDisconnected(FClientSocketUnit);
-        stSend: do_Send(Schedule.PacketPtr);
-        stTerminate: Break;
+    while FQueue.Pop(Pointer(Schedule)) do begin
+      try
+        case Schedule.ScheduleType of
+          stConnect: do_Connect(Schedule.Host, Schedule.Port);
+          stDisconnect: do_Disconnect;
+          stSend: do_Send(Schedule.PacketPtr);
+          stTerminate: Break;
+        end;
+      finally
+        Schedule.Free;
       end;
-    finally
-      Schedule.Free;
     end;
+
+    // TODO: Receive
   end;
 
   ReleaseSocketUnit;
-  if FQueue <> nil then FreeAndNil(FQueue);
+  FreeAndNil(FQueue);
 end;
 
 procedure TClientScheduler.ReleaseSocketUnit;
 begin
   if FClientSocketUnit <> nil then begin
-    FClientSocketUnit.OnDisconnected := nil;
-    FClientSocketUnit.OnReceived := nil;
+    FClientSocketUnit.Disconnect;
     FreeAndNil(FClientSocketUnit);
   end;
 end;
@@ -1576,36 +1546,17 @@ end;
 
 { TSuperSocketClient }
 
-function TSuperSocketClient.Connect(const AHost: string; APort: integer): boolean;
-var
-  ClientSocketUnit : TClientSocketUnit;
+procedure TSuperSocketClient.Connect(const AHost: string; APort: integer);
 begin
-  ClientSocketUnit := TClientSocketUnit.Create(FIdleCheck);
-  ClientSocketUnit.UseNagel := FUseNagle;
-
-  if not ClientSocketUnit.Connect(AHost, APort) then begin
-    ClientSocketUnit.Free;
-    Result := false;
-    Exit;
-  end;
-
-  ClientSocketUnit.OnReceived := FOnReceived;
-  FClientScheduler.TaskConnected(ClientSocketUnit);
-
-  Result := true;
+  FClientScheduler.TaskConnect(AHost, APort);
 end;
 
 constructor TSuperSocketClient.Create(AOwner:TComponent; AIdleCheck:boolean);
 begin
   inherited Create(AOwner);
 
-  FIdleCheck := AIdleCheck;
-  FUseNagle := false;
-
   FClientScheduler := TClientScheduler.Create;
-  FClientScheduler.OnTaskConnected := on_FClientScheduler_TaskConnected;
-  FClientScheduler.OnTaskDisconnect := on_FClientScheduler_TaskDisconnect;
-  FClientScheduler.OnTaskDisconnected := on_FClientScheduler_Disconnected;
+  FClientScheduler.FIdleCheck := AIdleCheck;
 end;
 
 destructor TSuperSocketClient.Destroy;
@@ -1625,25 +1576,50 @@ begin
   Result := (FClientScheduler.FClientSocketUnit <> nil) and (FClientScheduler.FClientSocketUnit.FSocket <> INVALID_SOCKET);
 end;
 
-procedure TSuperSocketClient.on_FClientScheduler_TaskConnected(AClientSocketUnit:TClientSocketUnit);
+function TSuperSocketClient.GetOnConnected: TNotifyEvent;
 begin
-  FClientScheduler.SetSocketUnit(AClientSocketUnit);
-  if Assigned(FOnConnected) then FOnConnected(Self);  
+  Result := FClientScheduler.OnConnected;
 end;
 
-procedure TSuperSocketClient.on_FClientScheduler_TaskDisconnect(Sender: TObject);
+function TSuperSocketClient.GetOnDisconnected: TNotifyEvent;
 begin
-  FClientScheduler.ReleaseSocketUnit;
+  Result := FClientScheduler.OnDisconnected;
 end;
 
-procedure TSuperSocketClient.on_FClientScheduler_Disconnected(Sender: TObject);
+function TSuperSocketClient.GetOnReceived: TSuperSocketClientReceivedEvent;
 begin
-  if Assigned(FOnDisconnected) then FOnDisconnected(Self);  
+  Result := FClientScheduler.OnReceived;
+end;
+
+function TSuperSocketClient.GetUseNagle: boolean;
+begin
+  Result := FClientScheduler.FUseNagle;
 end;
 
 procedure TSuperSocketClient.Send(APacket: PPacket);
 begin
   FClientScheduler.TaskSend(APacket^.Clone);
+end;
+
+procedure TSuperSocketClient.SetOnConnected(const Value: TNotifyEvent);
+begin
+  FClientScheduler.OnConnected := Value;
+end;
+
+procedure TSuperSocketClient.SetOnDisconnected(const Value: TNotifyEvent);
+begin
+  FClientScheduler.OnDisconnected := Value;
+end;
+
+procedure TSuperSocketClient.SetOnReceived(
+  const Value: TSuperSocketClientReceivedEvent);
+begin
+  FClientScheduler.OnReceived := Value;
+end;
+
+procedure TSuperSocketClient.SetUseNagle(const Value: boolean);
+begin
+  FClientScheduler.FUseNagle := Value;
 end;
 
 initialization
