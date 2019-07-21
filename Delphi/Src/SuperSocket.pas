@@ -561,7 +561,7 @@ procedure TConnection.do_PacketIn(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  InterlockedExchange(IdleCount, 0);
+  IdleCount := 0;
 
   FPacketReader.Write(UserName, AData, ASize);
   if FPacketReader.canRead then begin
@@ -1023,6 +1023,7 @@ begin
           Connection := ConnectionList.Items[Loop];
 
           if Connection = nil then Continue;
+          if Connection.FSocket = INVALID_SOCKET then Exit;
           if Connection.IsLogined = false then Continue;
 
           if InterlockedIncrement(Connection.IdleCount) > 4 then begin
@@ -1379,7 +1380,7 @@ begin
   FIdleCount := FIdleCount + Tick - FOldTick;
   FOldTick := Tick;
 
-  if FIdleCount > (MAX_IDLE_MS div 2) then Send( TPacket.GetPacket(0, nil, 0) );  
+  if FIdleCount > (MAX_IDLE_MS div 2) then Send( TPacket.GetPacket(0, nil, 0) );
 
   Result := FIdleCount > MAX_IDLE_MS;
 end;
@@ -1407,7 +1408,7 @@ begin
 
   if Result then begin
     {$IFDEF DEBUG}
-    Trace( Format('TClientSocketUnit.ReceivePacket - %s', [Packet.Text]) );
+//    Trace( Format('TClientSocketUnit.ReceivePacket - %s', [Packet.Text]) );
     {$ENDIF}
 
     if Assigned(FOnReceived) then FOnReceived(Self, Packet);    
@@ -1482,10 +1483,16 @@ end;
 
 procedure TClientScheduler.do_Send(APacket: PPacket);
 begin
-  if FClientSocketUnit = nil then Exit;
-
   try
-    if not FClientSocketUnit.Send(APacket) then do_Disconnect;
+    if FClientSocketUnit = nil then Exit;
+
+    if not FClientSocketUnit.Send(APacket) then begin
+      {$IFDEF DEBUG}
+      Trace('TClientScheduler.do_Send - Disconnected for sending error.');
+      {$ENDIF}
+
+      do_Disconnect;
+    end;
   finally
     FreeMem(APacket);
   end;
