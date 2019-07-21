@@ -1303,15 +1303,23 @@ end;
 function TClientSocketUnit.Connect(const AHost: string; APort: integer): boolean;
 var
   Addr : TSockAddrIn;
+  flag : u_long;
 begin
   FSocket := Socket(AF_INET, SOCK_STREAM, 0);
+
   Addr.sin_family := AF_INET;
   Addr.sin_port := htons(APort);
   Addr.sin_addr.S_addr := INET_ADDR(PAnsiChar(GetIP(AnsiString(AHost))));
-
   Result := WinSock2.connect(FSocket, TSockAddr(Addr), SizeOf(Addr)) = 0;
 
   if Result then begin
+    flag := 1;
+    if ioctlsocket(FSocket, FIONBIO, flag) <> 0 then begin
+      Result := false;
+      FSocket := INVALID_SOCKET;
+      Exit;
+    end;
+
     SetSocketDelayOption(FSocket, FUseNagel);
   end else begin
     FSocket := INVALID_SOCKET;
@@ -1391,28 +1399,29 @@ end;
 procedure TClientSocketUnit.ReceivePacket;
 var
   iRecv : integer;
+  Packet : PPacket;
   Buffer : array [0..PACKETREADER_PAGE_SIZE] of byte;
 begin
-//  Result := nil;
-//
-//  if FSocket = INVALID_SOCKET then Exit;
-//
-//  iRecv := recv(FSocket, Buffer, SizeOf(Buffer), 0);
-//
-//  if iRecv = SOCKET_ERROR then begin
-//    do_FireDisconnectedEvent;
-//    Exit;
-//  end;
-//
-//  FPacketReader.Write('TClientSocketUnit', @Buffer, iRecv);
-//
-//  Result := FPacketReader.Read;
+  if FSocket = INVALID_SOCKET then Exit;
+
+  iRecv := recv(FSocket, Buffer, SizeOf(Buffer), MSG_PARTIAL);
+
+  if iRecv > 0 then begin
+    FIdleCount := 0;
+
+    FPacketReader.Write('TClientSocketUnit', @Buffer, iRecv);
+    Packet := FPacketReader.Read;
+
+    {$IFDEF DEBUG}
+    if Packet <> nil then Trace( Format('TClientSocketUnit.ReceivePacket - %s', [Packet.Text]) );
+    {$ENDIF}
+  end;
 end;
 
 procedure TClientSocketUnit.Send(APacket: PPacket);
 begin
   if APacket = nil then APacket := NilPacket;  
-//  if WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) = SOCKET_ERROR then do_FireDisconnectedEvent;
+  if WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) = SOCKET_ERROR then ; //do_FireDisconnectedEvent;
 end;
 
 { TClientScheduler }
@@ -1503,7 +1512,7 @@ begin
       end;
     end;
 
-    // TODO: Receive
+    if FClientSocketUnit <> nil then FClientSocketUnit.ReceivePacket;
   end;
 
   ReleaseSocketUnit;
