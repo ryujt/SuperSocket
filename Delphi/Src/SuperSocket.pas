@@ -16,6 +16,8 @@ const
   /// Buffer size of TPacketReader
   PACKETREADER_PAGE_SIZE = PACKET_SIZE * 16;
 
+  MAX_IDLE_MS = 20000;
+
 type
   TIOStatus = (ioStart, ioStop, ioAccepted, ioSend, ioRecv, ioDisconnect);
 
@@ -285,22 +287,24 @@ type
 
   TClientSocketUnit = class
   private
-    FIdleCheck : boolean;
     FUseNagel: boolean;
+    FOldTick : DWORD;
     FIdleCount : integer;
     FSocket : TSocket;
     FPacketReader : TPacketReader;
   private
     FOnReceived: TSuperSocketClientReceivedEvent;
   public
-    constructor Create(AUseNagel:boolean); reintroduce;
+    constructor Create;
     destructor Destroy; override;
 
     function Connect(const AHost:string; APort:integer):boolean;
     procedure Disconnect;
 
-    procedure ReceivePacket;
-    procedure Send(APacket:PPacket);
+    function IdleCheck:boolean;
+
+    function ReceivePacket:boolean;
+    function Send(APacket:PPacket):boolean;
   end;
 
   TScheduleType = (stConnect, stDisconnect, stSend, stTerminate);
@@ -545,7 +549,7 @@ begin
   UserLevel := 0;
   IsLogined := false;
 
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   if FSocket <> INVALID_SOCKET then closesocket(FSocket);
   FSocket := INVALID_SOCKET;
@@ -557,7 +561,7 @@ procedure TConnection.do_PacketIn(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   FPacketReader.Write(UserName, AData, ASize);
   if FPacketReader.canRead then begin
@@ -1023,14 +1027,14 @@ begin
 
           if InterlockedIncrement(Connection.IdleCount) > 4 then begin
             {$IFDEF DEBUG}
-            Trace( Format('Connection is in the idle status - UserID: %s', [Connection.UserID]) );
+            Trace( Format('Disconnected for IdleCount - UserID: %s', [Connection.UserID]) );
             {$ENDIF}
 
             Connection.Disconnect;
           end;
         end;
 
-        ASimpleThread.Sleep(5000);
+        Sleep(MAX_IDLE_MS div 4);
       end;
     end
   );
@@ -1313,6 +1317,9 @@ begin
   Result := WinSock2.connect(FSocket, TSockAddr(Addr), SizeOf(Addr)) = 0;
 
   if Result then begin
+    FOldTick := 0;
+    FIdleCount := 0;
+
     flag := 1;
     if ioctlsocket(FSocket, FIONBIO, flag) <> 0 then begin
       Result := false;
@@ -1326,41 +1333,15 @@ begin
   end;
 end;
 
-constructor TClientSocketUnit.Create(AUseNagel:boolean);
+constructor TClientSocketUnit.Create;
 begin
-  inherited Create;
+  inherited;
 
-  FUseNagel := false;
   FSocket := INVALID_SOCKET;
-
   FPacketReader := TPacketReader.Create;
 
+  FOldTick := 0;
   FIdleCount := 0;
-//
-//  if not AIdleCheck then begin
-//    FIdleCountThread := nil;
-//    Exit;
-//  end;
-//
-//  FIdleCountThread := TSimpleThread.Create(
-//    'TClientSocketUnit.FIdleCountThread',
-//    procedure (ASimpleThread:TSimpleThread)
-//    begin
-//      while ASimpleThread.Terminated = false do begin
-//        if FSocket <> INVALID_SOCKET then begin
-//          Send(nil);
-//
-//          // 서버로부터 최소 20초 이상 응답이 없었다면 접속을 끝는다.
-//          if InterlockedIncrement(FIdleCount) > 4 then begin
-//            Disconnect;
-//            if Assigned(FOnDisconnected) then FOnDisconnected(Self);
-//          end;
-//        end;
-//
-//        ASimpleThread.Sleep(5000);
-//      end;
-//    end
-//  );
 end;
 
 destructor TClientSocketUnit.Destroy;
@@ -1377,51 +1358,66 @@ begin
   FSocket := INVALID_SOCKET;
 end;
 
-//procedure TClientSocketUnit.on_FSimpleThread_Execute(
-//  ASimpleThread: TSimpleThread);
-//var
-//  PacketPtr : PPacket;
-//begin
-//  while not ASimpleThread.Terminated do begin
-//    PacketPtr := Receive;
-//
-//    if PacketPtr = nil then begin
-//      Sleep(1);
-//      Continue;
-//    end;
-//
-//    InterlockedExchange(FIdleCount, 0);
-//
-//    if Assigned(FOnReceived) and (PacketPtr^.DataSize > 0) then FOnReceived(Self, PacketPtr);
-//  end;
-//end;
+function TClientSocketUnit.IdleCheck:boolean;
+var
+  Tick : DWord;
+begin
+  Result := false;
 
-procedure TClientSocketUnit.ReceivePacket;
+  Tick := GetTickCount;
+
+  if FOldTick = 0 then begin
+    FOldTick := Tick;
+    Exit;
+  end;
+
+  if FOldTick > Tick then begin
+    FOldTick := Tick;
+    Exit;
+  end;
+
+  FIdleCount := FIdleCount + Tick - FOldTick;
+  FOldTick := Tick;
+
+  if FIdleCount > (MAX_IDLE_MS div 2) then Send( TPacket.GetPacket(0, nil, 0) );  
+
+  Result := FIdleCount > MAX_IDLE_MS;
+end;
+
+function TClientSocketUnit.ReceivePacket:boolean;
 var
   iRecv : integer;
   Packet : PPacket;
   Buffer : array [0..PACKETREADER_PAGE_SIZE] of byte;
 begin
+  Result := false;
+
   if FSocket = INVALID_SOCKET then Exit;
 
   iRecv := recv(FSocket, Buffer, SizeOf(Buffer), MSG_PARTIAL);
+  if iRecv <= 0 then Exit;
 
-  if iRecv > 0 then begin
-    FIdleCount := 0;
+  FOldTick := 0;
+  FIdleCount := 0;
 
-    FPacketReader.Write('TClientSocketUnit', @Buffer, iRecv);
-    Packet := FPacketReader.Read;
+  FPacketReader.Write('TClientSocketUnit', @Buffer, iRecv);
+  Packet := FPacketReader.Read;
 
+  Result := Packet <> nil;
+
+  if Result then begin
     {$IFDEF DEBUG}
-    if Packet <> nil then Trace( Format('TClientSocketUnit.ReceivePacket - %s', [Packet.Text]) );
+    Trace( Format('TClientSocketUnit.ReceivePacket - %s', [Packet.Text]) );
     {$ENDIF}
+
+    if Assigned(FOnReceived) then FOnReceived(Self, Packet);    
   end;
 end;
 
-procedure TClientSocketUnit.Send(APacket: PPacket);
+function TClientSocketUnit.Send(APacket: PPacket):boolean;
 begin
-  if APacket = nil then APacket := NilPacket;  
-  if WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) = SOCKET_ERROR then ; //do_FireDisconnectedEvent;
+  if APacket = nil then APacket := NilPacket;
+  Result := WinSock2.send(FSocket, APacket^, APacket^.PacketSize, 0) <> SOCKET_ERROR;
 end;
 
 { TClientScheduler }
@@ -1430,6 +1426,7 @@ constructor TClientScheduler.Create;
 begin
   inherited;
 
+  FUseNagle := false;
   FClientSocketUnit := nil;
   FQueue := TDynamicQueue.Create(true);
   FSimpleThread := TSimpleThread.Create('TClientScheduler.Create', on_FSimpleThread_Execute);
@@ -1465,8 +1462,7 @@ end;
 
 procedure TClientScheduler.do_Connect(const AHost: string; APort: integer);
 begin
-  FClientSocketUnit := TClientSocketUnit.Create(FIdleCheck);
-  FClientSocketUnit.FIdleCheck := FIdleCheck;
+  FClientSocketUnit := TClientSocketUnit.Create;
   FClientSocketUnit.FUseNagel := FUseNagle;
   FClientSocketUnit.FOnReceived := FOnReceived;
 
@@ -1486,8 +1482,10 @@ end;
 
 procedure TClientScheduler.do_Send(APacket: PPacket);
 begin
+  if FClientSocketUnit = nil then Exit;
+
   try
-    if FClientSocketUnit <> nil then FClientSocketUnit.Send(APacket);
+    if not FClientSocketUnit.Send(APacket) then do_Disconnect;
   finally
     FreeMem(APacket);
   end;
@@ -1512,7 +1510,19 @@ begin
       end;
     end;
 
-    if FClientSocketUnit <> nil then FClientSocketUnit.ReceivePacket;
+    if FClientSocketUnit = nil then begin
+      Sleep(1);
+    end else begin
+      if FIdleCheck and FClientSocketUnit.IdleCheck then begin
+        {$IFDEF DEBUG}
+        Trace('TClientScheduler.on_FSimpleThread_Execute - Disconnected for IdleCount.');
+        {$ENDIF}
+
+        do_Disconnect;
+      end else begin
+        if not FClientSocketUnit.ReceivePacket then Sleep(1);
+      end;
+    end;
   end;
 
   ReleaseSocketUnit;
