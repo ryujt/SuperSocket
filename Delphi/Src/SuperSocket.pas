@@ -3,7 +3,7 @@ unit SuperSocket;
 interface
 
 uses
-  DebugTools, SimpleThread, DynamicQueue,
+  RyuLibBase, DebugTools, SimpleThread, DynamicQueue,
   Windows, SysUtils, Classes, WinSock2, AnsiStrings;
 
 const
@@ -17,6 +17,8 @@ const
   PACKETREADER_PAGE_SIZE = PACKET_SIZE * 16;
 
   MAX_IDLE_MS = 20000;
+
+  ERROR_CONNECT = -1;
 
 type
   TIOStatus = (ioStart, ioStop, ioAccepted, ioSend, ioRecv, ioDisconnect);
@@ -333,6 +335,7 @@ type
     FSimpleThread : TSimpleThread;
     procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
   private
+    FOnError: TIntegerEvent;
     FOnConnected: TNotifyEvent;
     FOnDisconnected: TNotifyEvent;
     FOnReceived: TSuperSocketClientReceivedEvent;
@@ -348,6 +351,7 @@ type
     procedure SetSocketUnit(AClientSocketUnit:TClientSocketUnit);
     procedure ReleaseSocketUnit;
   public
+    property OnError : TIntegerEvent read FOnError write FOnError;
     property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
     property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
     property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
@@ -366,6 +370,8 @@ type
     procedure SetOnConnected(const Value: TNotifyEvent);
     procedure SetOnDisconnected(const Value: TNotifyEvent);
     procedure SetOnReceived(const Value: TSuperSocketClientReceivedEvent);
+    function GetOnError: TIntegerEvent;
+    procedure SetOnError(const Value: TIntegerEvent);
   public
     constructor Create(AOwner:TComponent; AIdleCheck:boolean=true); reintroduce;
     destructor Destroy; override;
@@ -378,6 +384,7 @@ type
     property Connected : boolean read GetConnected;
     property UseNagel : boolean read GetUseNagle write SetUseNagle;
   published
+    property OnError : TIntegerEvent read GetOnError write SetOnError;
     property OnConnected : TNotifyEvent read GetOnConnected write SetOnConnected;
     property OnDisconnected : TNotifyEvent read GetOnDisconnected write SetOnDisconnected;
     property OnReceived : TSuperSocketClientReceivedEvent read GetOnReceived write SetOnReceived;
@@ -579,7 +586,7 @@ end;
 
 function TConnection.GetText: string;
 const
-  fmt = '{"id": %s, "user_id": "%s", "user_name": "%s", "user_level": %d}';
+  fmt = '{"id": %d, "user_id": "%s", "user_name": "%s", "user_level": %d}';
 begin
   Result := Format(fmt, [FID, UserID, UserName, UserLevel]);
 end;
@@ -1407,10 +1414,6 @@ begin
   Result := Packet <> nil;
 
   if Result then begin
-    {$IFDEF DEBUG}
-//    Trace( Format('TClientSocketUnit.ReceivePacket - %s', [Packet.Text]) );
-    {$ENDIF}
-
     if Assigned(FOnReceived) then FOnReceived(Self, Packet);    
   end;
 end;
@@ -1468,6 +1471,7 @@ begin
   FClientSocketUnit.FOnReceived := FOnReceived;
 
   if not FClientSocketUnit.Connect(AHost, APort) then begin
+    if Assigned(FOnError) then FOnError(Self, ERROR_CONNECT);
     FreeAndNil(FClientSocketUnit);
     Exit;
   end;
@@ -1612,6 +1616,11 @@ begin
   Result := FClientScheduler.OnDisconnected;
 end;
 
+function TSuperSocketClient.GetOnError: TIntegerEvent;
+begin
+  Result := FClientScheduler.OnError;
+end;
+
 function TSuperSocketClient.GetOnReceived: TSuperSocketClientReceivedEvent;
 begin
   Result := FClientScheduler.OnReceived;
@@ -1635,6 +1644,11 @@ end;
 procedure TSuperSocketClient.SetOnDisconnected(const Value: TNotifyEvent);
 begin
   FClientScheduler.OnDisconnected := Value;
+end;
+
+procedure TSuperSocketClient.SetOnError(const Value: TIntegerEvent);
+begin
+  FClientScheduler.OnError := Value;
 end;
 
 procedure TSuperSocketClient.SetOnReceived(
