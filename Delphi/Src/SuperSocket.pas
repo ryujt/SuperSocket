@@ -229,7 +229,7 @@ type
   private
     procedure TerminateAll;
 
-    /// »ç¿ë °¡´ÉÇÑ Connection °´Ã¼¸¦ ¸®ÅÏÇÑ´Ù.
+    /// ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Connection ï¿½ï¿½Ã¼ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
     function Add(ASocket:integer; const ARemoteIP:string):TConnection;
     procedure Remove(AConnection:TConnection);
   public
@@ -1032,7 +1032,7 @@ begin
           Connection := ConnectionList.Items[Loop];
 
           if Connection = nil then Continue;
-          if Connection.FSocket = INVALID_SOCKET then Exit;
+          if Connection.FSocket = INVALID_SOCKET then Continue;
           if Connection.IsLogined = false then Continue;
 
           if InterlockedIncrement(Connection.IdleCount) > 4 then begin
