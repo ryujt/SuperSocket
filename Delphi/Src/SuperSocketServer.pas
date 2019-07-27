@@ -154,6 +154,8 @@ type
   public
     constructor Create(ASuperSocketServer:TSuperSocketServer); reintroduce;
     destructor Destroy; override;
+
+    function FindByUserID(const AUserID:string):TConnection;
   public
     property Count : integer read FCount;
     property Items[AIndex:integer] : TConnection read GetConnection;
@@ -681,6 +683,27 @@ begin
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do FConnections[Loop].Free;
 
   inherited;
+end;
+
+function TConnectionList.FindByUserID(const AUserID: string): TConnection;
+var
+  Loop: Integer;
+  Connection : TConnection;
+begin
+  Result := nil;
+
+  for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
+    Connection := FConnections[Loop];
+    if Connection = nil then Continue;
+    if Connection.FID = 0 then Continue;
+    if Connection.IsLogined = false then Continue;
+    if Connection.FSocket = INVALID_SOCKET then Continue;
+
+    if Connection.UserID = AUserID then begin
+      Result := Connection;
+      Break;
+    end;
+  end;
 end;
 
 function TConnectionList.GetConnection(AIndex: integer): TConnection;
