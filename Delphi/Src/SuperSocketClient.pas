@@ -385,13 +385,14 @@ begin
     begin
       while ASimpleThread.Terminated = false do begin
         if (FCompletePort.FSocket <> INVALID_SOCKET) and (InterlockedIncrement(FCompletePort.FIdleCount) > 4) then begin
-          {$IFDEF DEBUG}
-          Trace('TSuperSocketClient - Disconnected for IdleCount');
-          {$ENDIF}
           Disconnect;
+
+          {$IFDEF DEBUG}
+          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.FIdleCount]) );
+          {$ENDIF}
         end;
 
-        if FCompletePort.FIdleCount > 2 then Send(NilPacket);
+        Send(NilPacket);
 
         Sleep(MAX_IDLE_MS div 4);
       end;

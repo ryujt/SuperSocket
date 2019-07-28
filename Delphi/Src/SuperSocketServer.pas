@@ -270,7 +270,7 @@ begin
   UserLevel := 0;
   IsLogined := false;
 
-  InterlockedExchange(IdleCount, 0);
+  IdleCount := 0;
 
   if FSocket <> INVALID_SOCKET then closesocket(FSocket);
   FSocket := INVALID_SOCKET;
@@ -767,9 +767,13 @@ begin
           if Connection.FSocket = INVALID_SOCKET then Continue;
           if Connection.IsLogined = false then Continue;
 
+          {$IFDEF DEBUG}
+          //Trace( Format('TConnection - IdleCount (%d, %d)', [Connection.ID, Connection.IdleCount]) );
+          {$ENDIF}
+
           if InterlockedIncrement(Connection.IdleCount) > 4 then begin
             {$IFDEF DEBUG}
-            Trace( Format('Disconnected for IdleCount - UserID: %s', [Connection.UserID]) );
+            Trace( Format('TSuperSocketServer - Disconnected for IdleCount (%s, %d)', [Connection.UserID, Connection.IdleCount]) );
             {$ENDIF}
 
             Connection.Disconnect;
