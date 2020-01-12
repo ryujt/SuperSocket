@@ -373,10 +373,10 @@ begin
   Addr.sin_addr.S_addr := INADDR_ANY;
 
   if bind(FSocket, TSockAddr(Addr), SizeOf(Addr)) <> 0 then
-    raise Exception.Create(SysErrorMessage(WSAGetLastError));
+    raise Exception.Create(Format('Port: %d - ', [FPort]) + SysErrorMessage(WSAGetLastError));
 
   if listen(FSocket, SOMAXCONN) <> 0 then
-    raise Exception.Create(SysErrorMessage(WSAGetLastError));
+    raise Exception.Create(Format('Port: %d - ', [FPort]) + SysErrorMessage(WSAGetLastError));
 
   SetSocketDelayOption(FSocket, FUseNagel);
   SetSocketLingerOption(FSocket, 0);
