@@ -75,7 +75,6 @@ type
     FOnConnected: TNotifyEvent;
     FOnDisconnected: TNotifyEvent;
     FOnReceived: TSuperSocketClientReceivedEvent;
-    FOnError: TIntegerEvent;
     function GetConnected: boolean;
     function GetUseNagle: boolean;
     procedure SetUseNagle(const Value: boolean);
@@ -93,7 +92,6 @@ type
     property Connected : boolean read GetConnected;
     property UseNagel : boolean read GetUseNagle write SetUseNagle;
   published
-    property OnError : TIntegerEvent read FOnError write FOnError;
     property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
     property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
     property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
@@ -187,7 +185,8 @@ var
   Addr : TSockAddrIn;
 begin
   FPacketReader.Clear;
-  FIdleCount := 0;
+
+  InterlockedExchange(FIdleCount, 0);
 
   do_Disconnect;
 
@@ -233,7 +232,7 @@ procedure TCompletePort.do_Receive(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  FIdleCount := 0;
+  InterlockedExchange(FIdleCount, 0);
 
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
   if FPacketReader.canRead then begin
@@ -384,8 +383,8 @@ begin
       Loop: Integer;
     begin
       while ASimpleThread.Terminated = false do begin
-        if (FCompletePort.FSocket <> INVALID_SOCKET) and (InterlockedIncrement(FCompletePort.FIdleCount) > 4) then begin
-          Disconnect;
+        if (FCompletePort.FSocket <> INVALID_SOCKET) and (InterlockedIncrement(FCompletePort.FIdleCount) > 5) then begin
+//          FCompletePort.do_Disconnect;
 
           {$IFDEF DEBUG}
           Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.FIdleCount]) );
@@ -394,7 +393,7 @@ begin
 
         Send(NilPacket);
 
-        Sleep(MAX_IDLE_MS div 4);
+        Sleep(MAX_IDLE_MS div 5);
       end;
     end
   );
@@ -434,6 +433,8 @@ end;
 
 procedure TSuperSocketClient.Terminate;
 begin
+  Disconnect;
+
   if FIdleCountThread <> nil then begin
     FIdleCountThread.TerminateNow;
     FreeAndNil(FCompletePort);
