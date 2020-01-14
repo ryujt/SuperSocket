@@ -83,12 +83,12 @@ type
   TListenerEvent = procedure (ASocket:integer; const ARemoteIP:string) of object;
 
   TListener = class
-  private
+  strict private
     FSocket : TSocket;
-  private
+  strict private
     FSimpleThread : TSimpleThread;
     procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
-  private
+  strict private
     FPort: integer;
     FUseNagel: boolean;
     FOnAccepted: TListenerEvent;
@@ -112,10 +112,10 @@ type
     FIODataPool : TIODataPool;
     FMemoryPool : TMemoryPool;
     procedure do_FireDisconnectEvent(AIOData:PIOData);
-  private
+  strict private
     FSimpleThread : TSimpleThread;
     procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
-  private
+  strict private
     FOnAccepted: TCompletePortEvent;
     FOnDisconnect: TCompletePortEvent;
     FOnStop: TCompletePortEvent;
@@ -140,20 +140,19 @@ type
   end;
 
   TConnectionList = class
-  private
+  strict private
     FID : integer;
     FCount : integer;
     FConnections : array [0..CONNECTION_POOL_SIZE-1] of TConnection;
     function GetConnection(AIndex:integer):TConnection;
-  private
-    procedure TerminateAll;
-
-    /// ��� ������ Connection ��ü�� �����Ѵ�.
-    function Add(ASocket:integer; const ARemoteIP:string):TConnection;
-    procedure Remove(AConnection:TConnection);
   public
     constructor Create(ASuperSocketServer:TSuperSocketServer); reintroduce;
     destructor Destroy; override;
+
+    procedure TerminateAll;
+
+    function Add(ASocket:integer; const ARemoteIP:string):TConnection;
+    procedure Remove(AConnection:TConnection);
 
     function FindByUserID(const AUserID:string):TConnection;
   public
@@ -314,7 +313,7 @@ end;
 
 constructor TIODataPool.Create;
 begin
-  FQueue := TDynamicQueue.Create(false);
+  FQueue := TDynamicQueue.Create(true);
 end;
 
 destructor TIODataPool.Destroy;
@@ -866,14 +865,14 @@ procedure TSuperSocketServer.SendToAll(APacket: PPacket);
 var
   Loop: Integer;
 begin
-  for Loop := 0 to CONNECTION_POOL_SIZE-1 do FConnectionList.FConnections[Loop].Send(APacket);
+  for Loop := 0 to CONNECTION_POOL_SIZE-1 do FConnectionList.Items[Loop].Send(APacket);
 end;
 
 procedure TSuperSocketServer.SendToID(AID: integer; APacket: PPacket);
 var
   Connection : TConnection;
 begin
-  Connection := FConnectionList.GetConnection(AID);
+  Connection := FConnectionList.Items[AID];
   if Connection <> nil then Connection.Send(APacket);
 end;
 
@@ -883,7 +882,7 @@ var
   Loop: Integer;
 begin
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
-    if FConnectionList.FConnections[Loop] <> AConnection then FConnectionList.FConnections[Loop].Send(APacket);
+    if FConnectionList.Items[Loop] <> AConnection then FConnectionList.Items[Loop].Send(APacket);
   end;
 end;
 

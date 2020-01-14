@@ -23,43 +23,23 @@ object fmMain: TfmMain
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
-    ExplicitLeft = 148
-    ExplicitTop = 132
-    ExplicitWidth = 185
-    object btConnect: TButton
+    object btStart: TButton
       Left = 12
       Top = 9
       Width = 75
       Height = 25
-      Caption = 'btConnect'
+      Caption = 'Start'
       TabOrder = 0
-      OnClick = btConnectClick
+      OnClick = btStartClick
     end
-    object btDisconnect: TButton
+    object btStop: TButton
       Left = 93
       Top = 9
       Width = 75
       Height = 25
-      Caption = 'btDisconnect'
+      Caption = 'btStop'
       TabOrder = 1
-      OnClick = btDisconnectClick
-    end
-    object Button3: TButton
-      Left = 174
-      Top = 9
-      Width = 75
-      Height = 25
-      Caption = 'btSend'
-      TabOrder = 2
-      OnClick = Button3Click
-    end
-    object Button4: TButton
-      Left = 255
-      Top = 9
-      Width = 75
-      Height = 25
-      Caption = 'Button4'
-      TabOrder = 3
+      OnClick = btStopClick
     end
   end
   object moMsg: TMemo
@@ -70,5 +50,11 @@ object fmMain: TfmMain
     Align = alClient
     ScrollBars = ssBoth
     TabOrder = 1
+  end
+  object Timer: TTimer
+    Interval = 200
+    OnTimer = TimerTimer
+    Left = 404
+    Top = 332
   end
 end

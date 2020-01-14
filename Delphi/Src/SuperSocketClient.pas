@@ -34,7 +34,7 @@ type
   end;
 
   TCompletePort = class
-  private
+  strict private
     FSocketClient : TSuperSocketClient;
     FSocket : TSocket;
     FPacketReader : TPacketReader;
@@ -44,10 +44,10 @@ type
     procedure do_Connect(AData:PIOData);
     procedure do_Disconnect;
     procedure do_Receive(AData:pointer; ASize:integer);
-  private
+  strict private
     FSimpleThread : TSimpleThread;
     procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
-  private
+  strict private
     FOldTick : DWORD;
     FIdleCount : integer;
     FUseNagel: boolean;
@@ -61,8 +61,11 @@ type
     procedure Disconnect;
     procedure StartReceive;
     procedure Send(APacket:PPacket);
+  private
+    function GetConnected: boolean;
   public
-    property UseNagel : boolean read FUseNagel;
+    property UseNagel : boolean read FUseNagel write FUseNagel;
+    property Connected : boolean read GetConnected;
   end;
 
   TSuperSocketClientReceivedEvent = procedure (ASender:TObject; APacket:PPacket) of object;
@@ -88,10 +91,10 @@ type
     procedure Disconnect;
 
     procedure Send(APacket:PPacket);
-  published
+  public
     property Connected : boolean read GetConnected;
     property UseNagel : boolean read GetUseNagle write SetUseNagle;
-  published
+  public
     property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
     property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
     property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
@@ -103,7 +106,7 @@ implementation
 
 constructor TIODataPool.Create;
 begin
-  FQueue := TDynamicQueue.Create(false);
+  FQueue := TDynamicQueue.Create(true);
 end;
 
 destructor TIODataPool.Destroy;
@@ -241,6 +244,11 @@ begin
   end;
 end;
 
+function TCompletePort.GetConnected: boolean;
+begin
+  Result := FSocket <> INVALID_SOCKET;
+end;
+
 procedure TCompletePort.on_FSimpleThread_Execute(ASimpleThread: TSimpleThread);
 var
   pData : PIOData;
@@ -271,7 +279,8 @@ begin
     case pData^.Status of
       ioConnect: do_Connect(pData);
       ioDisconnect: do_Disconnect;
-      ioSend: FreeMem(pData^.wsaBuffer.buf);
+
+      ioSend:FreeMem(pData^.wsaBuffer.buf);
 
       ioRecv: begin
         StartReceive;
@@ -376,27 +385,27 @@ begin
     Exit;
   end;
 
-  FIdleCountThread := TSimpleThread.Create(
-    'TSuperSocketClient.IdleCount',
-    procedure (ASimpleThread:TSimpleThread)
-    var
-      Loop: Integer;
-    begin
-      while ASimpleThread.Terminated = false do begin
-        if (FCompletePort.FSocket <> INVALID_SOCKET) and (InterlockedIncrement(FCompletePort.FIdleCount) > 5) then begin
-//          FCompletePort.do_Disconnect;
-
-          {$IFDEF DEBUG}
-          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.FIdleCount]) );
-          {$ENDIF}
-        end;
-
-        Send(NilPacket);
-
-        Sleep(MAX_IDLE_MS div 5);
-      end;
-    end
-  );
+//  FIdleCountThread := TSimpleThread.Create(
+//    'TSuperSocketClient.IdleCount',
+//    procedure (ASimpleThread:TSimpleThread)
+//    var
+//      Loop: Integer;
+//    begin
+//      while ASimpleThread.Terminated = false do begin
+////        if (FCompletePort.FSocket <> INVALID_SOCKET) and (InterlockedIncrement(FCompletePort.FIdleCount) > 5) then begin
+//////          FCompletePort.do_Disconnect;
+////
+////          {$IFDEF DEBUG}
+////          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.FIdleCount]) );
+////          {$ENDIF}
+////        end;
+//
+//        Send(NilPacket);
+//
+//        Sleep(MAX_IDLE_MS div 5);
+//      end;
+//    end
+//  );
 end;
 
 destructor TSuperSocketClient.Destroy;
@@ -413,12 +422,12 @@ end;
 
 function TSuperSocketClient.GetConnected: boolean;
 begin
-  Result := FCompletePort.FSocket <> INVALID_SOCKET;
+  Result := FCompletePort.Connected;
 end;
 
 function TSuperSocketClient.GetUseNagle: boolean;
 begin
-  Result := FCompletePort.FUseNagel;
+  Result := FCompletePort.UseNagel;
 end;
 
 procedure TSuperSocketClient.Send(APacket: PPacket);
@@ -428,7 +437,7 @@ end;
 
 procedure TSuperSocketClient.SetUseNagle(const Value: boolean);
 begin
-  FCompletePort.FUseNagel := Value;
+  FCompletePort.UseNagel := Value;
 end;
 
 procedure TSuperSocketClient.Terminate;

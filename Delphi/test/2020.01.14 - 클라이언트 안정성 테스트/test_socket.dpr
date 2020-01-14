@@ -1,9 +1,8 @@
-program Example;
+program test_socket;
 
 uses
   Vcl.Forms,
-  _fmMain in '_fmMain.pas' {fmMain},
-  TextProtocol in 'TextProtocol.pas';
+  _fmMain in '_fmMain.pas' {fmMain};
 
 {$R *.res}
 
