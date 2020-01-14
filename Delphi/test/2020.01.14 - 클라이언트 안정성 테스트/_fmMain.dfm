@@ -57,12 +57,4 @@ object fmMain: TfmMain
     Left = 404
     Top = 332
   end
-  object IdTCPServer: TIdTCPServer
-    Bindings = <>
-    DefaultPort = 1000
-    OnConnect = IdTCPServerConnect
-    OnExecute = IdTCPServerExecute
-    Left = 196
-    Top = 100
-  end
 end

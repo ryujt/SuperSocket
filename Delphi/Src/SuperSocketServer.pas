@@ -192,6 +192,7 @@ type
     procedure Start;
     procedure Stop;
 
+    procedure SendTo(AConnection:TConnection; APacket:PPacket);
     procedure SendToID(AID:integer; APacket:PPacket);
     procedure SendToAll(APacket:PPacket);
     procedure SendToOther(AConnection:TConnection; APacket:PPacket);
@@ -861,11 +862,16 @@ begin
   FCompletePort.Accepted(ASocket, ARemoteIP);
 end;
 
+procedure TSuperSocketServer.SendTo(AConnection: TConnection; APacket: PPacket);
+begin
+  if AConnection <> nil then AConnection.Send(APacket);
+end;
+
 procedure TSuperSocketServer.SendToAll(APacket: PPacket);
 var
   Loop: Integer;
 begin
-  for Loop := 0 to CONNECTION_POOL_SIZE-1 do FConnectionList.Items[Loop].Send(APacket);
+  for Loop := 0 to CONNECTION_POOL_SIZE-1 do SendTo(FConnectionList.Items[Loop], APacket);
 end;
 
 procedure TSuperSocketServer.SendToID(AID: integer; APacket: PPacket);
@@ -882,7 +888,7 @@ var
   Loop: Integer;
 begin
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
-    if FConnectionList.Items[Loop] <> AConnection then FConnectionList.Items[Loop].Send(APacket);
+    if FConnectionList.Items[Loop] <> AConnection then SendTo(FConnectionList.Items[Loop], APacket);
   end;
 end;
 

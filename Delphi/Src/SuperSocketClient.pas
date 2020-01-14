@@ -49,9 +49,10 @@ type
     procedure on_FSimpleThread_Execute(ASimpleThread:TSimpleThread);
   strict private
     FOldTick : DWORD;
-    FIdleCount : integer;
     FUseNagel: boolean;
   public
+    IdleCount : integer;
+
     constructor Create(ASocketClient:TSuperSocketClient); reintroduce;
     destructor Destroy; override;
 
@@ -153,7 +154,7 @@ begin
   FSocket := INVALID_SOCKET;
   FUseNagel := false;
   FOldTick := 0;
-  FIdleCount := 0;
+  IdleCount := 0;
 
   FCompletionPort := CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
   FPacketReader := TPacketReader.Create;
@@ -189,7 +190,7 @@ var
 begin
   FPacketReader.Clear;
 
-  InterlockedExchange(FIdleCount, 0);
+  InterlockedExchange(IdleCount, 0);
 
   do_Disconnect;
 
@@ -235,7 +236,7 @@ procedure TCompletePort.do_Receive(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  InterlockedExchange(FIdleCount, 0);
+  InterlockedExchange(IdleCount, 0);
 
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
   if FPacketReader.canRead then begin
@@ -385,27 +386,27 @@ begin
     Exit;
   end;
 
-//  FIdleCountThread := TSimpleThread.Create(
-//    'TSuperSocketClient.IdleCount',
-//    procedure (ASimpleThread:TSimpleThread)
-//    var
-//      Loop: Integer;
-//    begin
-//      while ASimpleThread.Terminated = false do begin
-////        if (FCompletePort.FSocket <> INVALID_SOCKET) and (InterlockedIncrement(FCompletePort.FIdleCount) > 5) then begin
-//////          FCompletePort.do_Disconnect;
-////
-////          {$IFDEF DEBUG}
-////          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.FIdleCount]) );
-////          {$ENDIF}
-////        end;
-//
-//        Send(NilPacket);
-//
-//        Sleep(MAX_IDLE_MS div 5);
-//      end;
-//    end
-//  );
+  FIdleCountThread := TSimpleThread.Create(
+    'TSuperSocketClient.IdleCount',
+    procedure (ASimpleThread:TSimpleThread)
+    var
+      Loop: Integer;
+    begin
+      while ASimpleThread.Terminated = false do begin
+        if FCompletePort.Connected and (InterlockedIncrement(FCompletePort.IdleCount) > 5) then begin
+//          FCompletePort.do_Disconnect;
+
+          {$IFDEF DEBUG}
+          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.IdleCount]) );
+          {$ENDIF}
+        end;
+
+        Send(NilPacket);
+
+        Sleep(MAX_IDLE_MS div 5);
+      end;
+    end
+  );
 end;
 
 destructor TSuperSocketClient.Destroy;

@@ -6,8 +6,7 @@ uses
   DebugTools, IdGlobal,
   SuperSocketUtils, SuperSocketClient, SuperSocketServer, MemoryPool,
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, IdContext,
-  IdBaseComponent, IdComponent, IdCustomTCPServer, IdTCPServer;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
 
 type
   TfmMain = class(TForm)
@@ -16,14 +15,11 @@ type
     Panel1: TPanel;
     moMsg: TMemo;
     Timer: TTimer;
-    IdTCPServer: TIdTCPServer;
     procedure FormCreate(Sender: TObject);
     procedure btStartClick(Sender: TObject);
     procedure btStopClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure TimerTimer(Sender: TObject);
-    procedure IdTCPServerExecute(AContext: TIdContext);
-    procedure IdTCPServerConnect(AContext: TIdContext);
   private
     FOldTick, FTerm : cardinal;
   private
@@ -100,50 +96,19 @@ procedure TfmMain.FormCreate(Sender: TObject);
 begin
   FMemoryPool := TMemoryPool32.Create(1024 * 1024);
 
-//  FSocketServer := TSuperSocketServer.Create(false);
-//  FSocketServer.UseNagel := false;
-//  FSocketServer.Port := 1000;
-//  FSocketServer.OnConnected := on_server_Connected;
-//  FSocketServer.OnDisconnected := on_server_Disconnected;
-//  FSocketServer.OnReceived := on_server_Received;
-//  FSocketServer.Start;
+  FSocketServer := TSuperSocketServer.Create(false);
+  FSocketServer.UseNagel := false;
+  FSocketServer.Port := 1000;
+  FSocketServer.OnConnected := on_server_Connected;
+  FSocketServer.OnDisconnected := on_server_Disconnected;
+  FSocketServer.OnReceived := on_server_Received;
+  FSocketServer.Start;
 
-  IdTCPServer.Bindings.Add.IP := '127.0.0.1';
-  IdTCPServer.Bindings.Add.Port := 1000;
-  IdTCPServer.Active := true;
-
-  FSocketClient := TSuperSocketClient.Create(true);
+  FSocketClient := TSuperSocketClient.Create(false);
   FSocketClient.UseNagel := false;
   FSocketClient.OnConnected := on_client_Connected;
   FSocketClient.OnDisconnected := on_client_Disconnected;
   FSocketClient.OnReceived := on_client_Received;
-end;
-
-procedure TfmMain.IdTCPServerConnect(AContext: TIdContext);
-begin
-  moMsg.Lines.Add('IdTCPServerConnect');
-end;
-
-procedure TfmMain.IdTCPServerExecute(AContext: TIdContext);
-var
-  buffer : TIdBytes;
-  size : integer;
-begin
-  FServerPacketCount := FServerPacketCount + 1;
-  AContext.Connection.IOHandler.ReadBytes(buffer, 77, false);
-  AContext.Connection.IOHandler.Write(buffer);
-
-//  size := AContext.Connection.IOHandler.ReadWord(false);
-//  AContext.Connection.IOHandler.ReadBytes(buffer, size-2, false);
-//
-//  try
-//    AContext.Connection.IOHandler.Write(LongInt(Length(buffer)));
-//    AContext.Connection.IOHandler.WriteBufferOpen;
-//    AContext.Connection.IOHandler.Write(buffer, Length(buffer));
-//    AContext.Connection.IOHandler.WriteBufferFlush;
-//  finally
-//    AContext.Connection.IOHandler.WriteBufferClose;
-//  end;
 end;
 
 procedure TfmMain.on_client_Connected(Sender: TObject);
