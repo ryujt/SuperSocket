@@ -285,7 +285,7 @@ begin
   IdleCount := 0;
 
   FPacketReader.Write(UserName, AData, ASize);
-  if FPacketReader.canRead then begin
+  while FPacketReader.canRead do begin
     PacketPtr := FPacketReader.Read;
     if PacketPtr^.DataSize = 0 then Send(NilPacket);
     if Assigned(FSuperSocketServer.FOnReceived) then FSuperSocketServer.FOnReceived(Self, PacketPtr);
@@ -306,7 +306,7 @@ end;
 
 procedure TConnection.Send(APacket: PPacket);
 begin
-  if FSocket <> INVALID_SOCKET then
+  if (FSocket <> INVALID_SOCKET) and (APacket <> nil) then
     FSuperSocketServer.FCompletePort.Send(Self, APacket, APacket^.PacketSize);
 end;
 

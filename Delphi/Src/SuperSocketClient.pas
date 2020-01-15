@@ -239,7 +239,7 @@ begin
   InterlockedExchange(IdleCount, 0);
 
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
-  if FPacketReader.canRead then begin
+  while FPacketReader.canRead do begin
     PacketPtr := FPacketReader.Read;
     if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
   end;

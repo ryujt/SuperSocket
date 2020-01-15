@@ -151,8 +151,11 @@ var
   Packet: PPacket;
 begin
   FServerPacketCount := FServerPacketCount + 1;
-  Packet := GetPacketClone(FMemoryPool, APacket);
-  FSocketServer.SendToAll(Packet);
+
+  if APacket^.PacketSize > 0 then begin
+    Packet := GetPacketClone(FMemoryPool, APacket);
+    FSocketServer.SendToAll(Packet);
+  end;
 end;
 
 procedure TfmMain.TimerTimer(Sender: TObject);
