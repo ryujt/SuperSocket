@@ -96,7 +96,7 @@ procedure TfmMain.FormCreate(Sender: TObject);
 begin
   FMemoryPool := TMemoryPool32.Create(1024 * 1024);
 
-  FSocketServer := TSuperSocketServer.Create(false);
+  FSocketServer := TSuperSocketServer.Create(true);
   FSocketServer.UseNagel := false;
   FSocketServer.Port := 1000;
   FSocketServer.OnConnected := on_server_Connected;
@@ -104,7 +104,7 @@ begin
   FSocketServer.OnReceived := on_server_Received;
   FSocketServer.Start;
 
-  FSocketClient := TSuperSocketClient.Create(false);
+  FSocketClient := TSuperSocketClient.Create(true);
   FSocketClient.UseNagel := false;
   FSocketClient.OnConnected := on_client_Connected;
   FSocketClient.OnDisconnected := on_client_Disconnected;
@@ -114,7 +114,7 @@ end;
 procedure TfmMain.on_client_Connected(Sender: TObject);
 begin
   moMsg.Lines.Add('on_client_Connected');
-  do_send;
+//  do_send;
 end;
 
 procedure TfmMain.on_client_Disconnected(Sender: TObject);
@@ -150,12 +150,12 @@ procedure TfmMain.on_server_Received(AConnection: TConnection;
 var
   Packet: PPacket;
 begin
+  Packet := GetPacketClone(FMemoryPool, APacket);
+  if Packet = nil then Exit;
+  
   FServerPacketCount := FServerPacketCount + 1;
 
-  if APacket^.PacketSize > 0 then begin
-    Packet := GetPacketClone(FMemoryPool, APacket);
-    FSocketServer.SendToAll(Packet);
-  end;
+  FSocketServer.SendToAll(Packet);
 end;
 
 procedure TfmMain.TimerTimer(Sender: TObject);

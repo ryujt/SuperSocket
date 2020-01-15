@@ -241,7 +241,7 @@ begin
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
   while FPacketReader.canRead do begin
     PacketPtr := FPacketReader.Read;
-    if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
+    if Assigned(FSocketClient.FOnReceived) and (PacketPtr^.PacketType <> 255) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
   end;
 end;
 
@@ -389,8 +389,6 @@ begin
   FIdleCountThread := TSimpleThread.Create(
     'TSuperSocketClient.IdleCount',
     procedure (ASimpleThread:TSimpleThread)
-    var
-      Loop: Integer;
     begin
       while ASimpleThread.Terminated = false do begin
         if FCompletePort.Connected and (InterlockedIncrement(FCompletePort.IdleCount) > 5) then begin
@@ -401,9 +399,9 @@ begin
           {$ENDIF}
         end;
 
-        Send(NilPacket);
+        Send(@NilPacket);
 
-        Sleep(MAX_IDLE_MS div 5);
+        ASimpleThread.Sleep(MAX_IDLE_MS div 5);
       end;
     end
   );

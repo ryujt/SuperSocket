@@ -90,7 +90,7 @@ type
 
 var
   WSAData : TWSAData;
-  NilPacket : PPacket;
+  NilPacket : TPacket;
 
 function GetIP(const AHost:AnsiString):AnsiString;
 procedure SetSocketDelayOption(ASocket:integer; ADelay:boolean);
@@ -253,7 +253,7 @@ begin
   end;
 
   PacketPtr := Pointer(FOffsetPtr);
-  Result := FBufferSize >= PacketPtr^.PacketSize;
+  Result := (FBufferSize > 0) and (FBufferSize >= PacketPtr^.PacketSize);
 end;
 
 procedure TPacketReader.Clear;
@@ -356,7 +356,9 @@ begin
 end;
 
 initialization
-  NilPacket := TPacket.GetPacket(0, nil, 0);
+  NilPacket.PacketSize := 3;
+  NilPacket.PacketType := 255;
+
   if WSAStartup(WINSOCK_VERSION, WSAData) <> 0 then
     raise Exception.Create(SysErrorMessage(GetLastError));
 finalization
