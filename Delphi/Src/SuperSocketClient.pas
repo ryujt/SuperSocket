@@ -392,6 +392,7 @@ begin
     begin
       while ASimpleThread.Terminated = false do begin
         if FCompletePort.Connected and (InterlockedIncrement(FCompletePort.IdleCount) > 5) then begin
+        // TODO:
 //          FCompletePort.do_Disconnect;
 
           {$IFDEF DEBUG}
