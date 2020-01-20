@@ -11,7 +11,7 @@ const
   PACKET_SIZE = 8192;
 
   /// Concurrent connection limitation
-  CONNECTION_POOL_SIZE = 512;
+  CONNECTION_POOL_SIZE = 4096;
 
   /// Buffer size of TPacketReader
   PACKETREADER_PAGE_SIZE = PACKET_SIZE * 16;
