@@ -694,7 +694,6 @@ begin
 
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
     Connection := FConnections[Loop];
-    if Connection = nil then Continue;
     if Connection.FID = 0 then Continue;
     if Connection.IsLogined = false then Continue;
     if Connection.FSocket = INVALID_SOCKET then Continue;
