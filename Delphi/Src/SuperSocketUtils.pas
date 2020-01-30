@@ -8,7 +8,7 @@ uses
 
 const
   /// Packet size limitation including header.
-  PACKET_SIZE = 8192;
+  PACKET_SIZE = 1024 * 32;
 
   /// Concurrent connection limitation
   CONNECTION_POOL_SIZE = 4096;
