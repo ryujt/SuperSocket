@@ -711,7 +711,6 @@ begin
 
   if AIndex <> 0 then begin
     Result := FConnections[DWord(AIndex) mod CONNECTION_POOL_SIZE];
-    if (Result <> nil) and (Result.FID <> AIndex) then Result := nil;
   end;
 end;
 
