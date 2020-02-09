@@ -651,7 +651,13 @@ begin
     if FConnections[DWord(FID) mod CONNECTION_POOL_SIZE].FID = 0 then begin
       Inc(FCount);
       Result := FConnections[DWord(FID) mod CONNECTION_POOL_SIZE];
-      Result.FID := FID;
+
+      // 복잡해 보이도록 "Random($FFFF) * CONNECTION_POOL_SIZE"를 더한다.
+      // 실제 사용에서는 CONNECTION_POOL_SIZE로 나눠서 나머지만 취급하기 때문에 더하나 안하나 마찬가지
+      // 하지만 ID를 랜덤으로 맞춰서 들어올 수 있는 확률을 상당히 낮출 수 있다.
+      Randomize;
+      Result.FID := Random($FFFF) * CONNECTION_POOL_SIZE + FID;
+
       Result.FSocket := ASocket;
       Result.FRemoteIP := ARemoteIP;
       Result.RoomID := '';
@@ -788,10 +794,7 @@ destructor TSuperSocketServer.Destroy;
 begin
   FListener.Stop;
 
-  if FIdleCountThread <> nil then begin
-    FIdleCountThread.TerminateNow;
-    FreeAndNil(FIdleCountThread);
-  end;
+  if FIdleCountThread <> nil then FIdleCountThread.TerminateNow;
 
   FreeAndNil(FConnectionList);
   FreeAndNil(FListener);
