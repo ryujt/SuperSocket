@@ -11,6 +11,7 @@ type
 
   TSuperSocketServer = class;
 
+  /// Contains information and methods of connection.
   TConnection = class
   private
     FPacketReader : TPacketReader;
@@ -27,19 +28,18 @@ type
     constructor Create;
     destructor Destroy; override;
 
+    /// Disconnect the current connection.
     procedure Disconnect;
 
-    {*
-      Send [Packet]
-      @param APacket See the TPacket class
-      @param APacketSize SizeOf([Header][PacketType[Data])
+    {* Send a packet to the current connection.
+    @param APacket a message to send.
     }
     procedure Send(APacket:PPacket);
   public
     /// Dummy property as like TComponent.Tag.
     Tag : integer;
 
-    /// Dummy property as like TComponent.Tag.
+    /// Dummy property.
     UserData : pointer;
 
     IdleCount : integer;
@@ -52,10 +52,13 @@ type
     UserName : string;
     UserLevel : integer;
 
+    /// Indicates whether the current connection is connected.
     property IsConnected : boolean read GetIsConnected;
 
-    /// Information of TConnection object.
+    /// The unique ID of the current connection assigned in TConnectionList.
     property ID : integer read FID;
+
+    /// Information of TConnection object in json format.
     property Text : string read GetText;
   end;
 
@@ -163,6 +166,7 @@ type
   TSuperSocketServerEvent = procedure (AConnection:TConnection) of object;
   TSuperSocketServerReceivedEvent = procedure (AConnection:TConnection; APacket:PPacket) of object;
 
+  /// TCP socket server using IOCP.
   TSuperSocketServer = class
   private
     FIdleCountThread : TSimpleThread;
@@ -189,20 +193,48 @@ type
     constructor Create(AIdleCheck:boolean=true); reintroduce;
     destructor Destroy; override;
 
-    procedure Start;
-    procedure Stop;
+    procedure Start; /// Start TSuperSocketServer.
+    procedure Stop;  /// Stop TSuperSocketServer.
 
+    {* Send a message to the specified connection.
+    @param AConnection the connection to receive the packet(APacket).
+    @param APacket a message to send.
+    }
     procedure SendTo(AConnection:TConnection; APacket:PPacket);
+
+    {* Send a message to the specified connection ID.
+    @param AID the connection ID to receive the packet(APacket).
+    @param APacket a message to send.
+    }
     procedure SendToID(AID:integer; APacket:PPacket);
+
+    {* Deliver packets to all connected clients.
+    @param APacket a message to send.
+    }
     procedure SendToAll(APacket:PPacket);
+
+    {* Deliver the packet to all connected clients except current connection.
+    @param AConnection the connection to exclude.
+    @param APacket a message to send.
+    }
     procedure SendToOther(AConnection:TConnection; APacket:PPacket);
   public
+    /// Port number for the server to use.
     property Port : integer read GetPort write SetPort;
+
+    /// Specifies whether to use nagle algorithm.
     property UseNagel : boolean read GetUseNagel write SetUseNagel;
+
+    /// A list of connections in TSuperSocketServer.
     property ConnectionList : TConnectionList read FConnectionList;
   published
+    /// Use OnConnected to perform special processing when the new connection created.
     property OnConnected : TSuperSocketServerEvent read FOnConnected write FOnConnected;
+
+    /// Use OnDisconnected to perform special processing when a connection disconnected.
     property OnDisconnected : TSuperSocketServerEvent read FOnDisconnected write FOnDisconnected;
+
+    /// Use OnDisconnected to perform special processing when a connection has new packet.
     property OnReceived : TSuperSocketServerReceivedEvent read FOnReceived write FOnReceived;
   end;
 

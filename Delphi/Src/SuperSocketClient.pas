@@ -91,18 +91,36 @@ type
     constructor Create(AIdleCheck:boolean=false); reintroduce;
     destructor Destroy; override;
 
+    /// Terminate all internal thread and functions.
     procedure Terminate;
 
+    {* Connect to the server.
+    @param AHost Host name of the server.
+    @param APort Port number of the server.
+    }
     procedure Connect(const AHost:string; APort:integer);
+
+    /// Disconnect the current connection.
     procedure Disconnect;
 
+    {* Send a packet to the current connection.
+    @param APacket a message to send.
+    }
     procedure Send(APacket:PPacket);
   public
+    /// Indicates whether the connection is connected.
     property Connected : boolean read GetConnected;
+
+    /// Specifies whether to use nagle algorithm.
     property UseNagel : boolean read GetUseNagle write SetUseNagle;
   public
+    /// Use OnConnected to perform special processing when the connection created.
     property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
+
+    /// Use OnDisconnected to perform special processing when the connection disconnected.
     property OnDisconnected : TNotifyEvent read FOnDisconnected write FOnDisconnected;
+
+    /// Use OnDisconnected to perform special processing when the connection has new packet.
     property OnReceived : TSuperSocketClientReceivedEvent read FOnReceived write FOnReceived;
   end;
 
