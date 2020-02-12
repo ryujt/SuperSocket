@@ -213,7 +213,7 @@ var
 begin
   FPacketReader.Clear;
 
-  InterlockedExchange(IdleCount, 0);
+  IdleCount := 0;
 
   do_Disconnect;
 
@@ -257,6 +257,10 @@ procedure TCompletePort.do_DisconnectWithEvent;
 begin
   if FSocket = INVALID_SOCKET then Exit;
 
+  {$IFDEF DEBUG}
+  Trace('TCompletePort - do_DisconnectWithEvent');
+  {$ENDIF}
+
   closesocket(FSocket);
   FSocket := INVALID_SOCKET;
 
@@ -267,7 +271,7 @@ procedure TCompletePort.do_Receive(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  InterlockedExchange(IdleCount, 0);
+  IdleCount := 0;
 
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
   while FPacketReader.canRead do begin
