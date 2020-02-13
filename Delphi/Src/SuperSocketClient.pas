@@ -74,6 +74,7 @@ type
     property Connected : boolean read GetConnected;
   end;
 
+  TSuperSocketClientErrorEvent = procedure (Sender:TObject; AErrorCode:integer; const AMsg:string) of object;
   TSuperSocketClientReceivedEvent = procedure (ASender:TObject; APacket:PPacket) of object;
 
   TSuperSocketClient = class
@@ -81,6 +82,7 @@ type
     FCompletePort : TCompletePort;
     FIdleCountThread : TSimpleThread;
   private
+    FOnError: TSuperSocketClientErrorEvent;
     FOnConnected: TNotifyEvent;
     FOnDisconnected: TNotifyEvent;
     FOnReceived: TSuperSocketClientReceivedEvent;
@@ -114,6 +116,9 @@ type
     /// Specifies whether to use nagle algorithm.
     property UseNagel : boolean read GetUseNagle write SetUseNagle;
   public
+    /// Use OnError to perform special processing when the error raised.
+    property OnError : TSuperSocketClientErrorEvent read FOnError write FOnError;
+
     /// Use OnConnected to perform special processing when the connection created.
     property OnConnected : TNotifyEvent read FOnConnected write FOnConnected;
 
@@ -242,6 +247,7 @@ begin
 
   end else begin
     FSocket := INVALID_SOCKET;
+    if Assigned(FSocketClient.FOnError) then FSocketClient.FOnError(FSocketClient, -1, 'Connection failed.');
   end;
 end;
 
