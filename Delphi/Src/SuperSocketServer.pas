@@ -686,7 +686,7 @@ begin
 
       // 복잡해 보이도록 "Random($4096) * CONNECTION_POOL_SIZE"를 더한다.
       // 실제 사용에서는 CONNECTION_POOL_SIZE로 나눠서 나머지만 취급하기 때문에 더하나 안하나 마찬가지
-      // 하지만 ID를 랜덤으로 맞춰서 들어올 수 있는 확률을 상당히 낮출 수 있다.
+      // 하지만 ID를 랜덤으로 맞춰서 들어올 수 있는 확률을 낮출 수 있다.
       Randomize;
       Result.FID := Random($4096) * CONNECTION_POOL_SIZE + FID;
 
@@ -697,6 +697,8 @@ begin
       Break;
     end;
   end;
+
+  FID := FID mod CONNECTION_POOL_SIZE;
 end;
 
 constructor TConnectionList.Create(ASuperSocketServer:TSuperSocketServer);
