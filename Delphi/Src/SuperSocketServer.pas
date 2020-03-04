@@ -44,7 +44,9 @@ type
 
     IdleCount : integer;
 
+    /// Predeclare frequently used variables
     IsLogined : boolean;
+    IsMuted : boolean;
     RoomID : string;
     Room : TObject;
     UserID : string;
@@ -293,6 +295,7 @@ procedure TConnection.do_Init;
 begin
   FID := 0;
   FRemoteIP := '';
+  IsMuted := false;
   RoomID := '';
   Room := nil;
   UserData := nil;
@@ -331,9 +334,9 @@ end;
 
 function TConnection.GetText: string;
 const
-  fmt = '{"id": %d, "user_id": "%s", "user_name": "%s", "user_level": %d}';
+  fmt = '{"id": %d, "user_id": "%s", "user_name": "%s", "user_level": %d, "is_muted": %d}';
 begin
-  Result := Format(fmt, [FID, UserID, UserName, UserLevel]);
+  Result := Format(fmt, [FID, UserID, UserName, UserLevel, Integer(IsMuted)]);
 end;
 
 procedure TConnection.Send(APacket: PPacket);
