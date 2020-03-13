@@ -38,6 +38,7 @@ type
   public
     /// Dummy property as like TComponent.Tag.
     Tag : integer;
+    TagStr : string;
 
     /// Dummy property.
     UserData : pointer;
