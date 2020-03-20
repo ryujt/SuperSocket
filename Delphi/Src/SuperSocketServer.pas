@@ -3,7 +3,7 @@
 interface
 
 uses
-  RyuLibBase, DebugTools, SuperSocketUtils, SimpleThread, DynamicQueue,
+  RyuLibBase, DebugTools, SuperSocketUtils, SimpleThread, DynamicQueue, JsonData,
   Windows, SysUtils, Classes, WinSock2, AnsiStrings;
 
 type
@@ -24,6 +24,14 @@ type
     FRemoteIP : string;
     function GetIsConnected: boolean;
     function GetText: string;
+    function GetIsMuted: boolean;
+    function GetUserID: string;
+    function GetUserLevel: integer;
+    function GetUserName: string;
+    procedure SetIsMuted(const Value: boolean);
+    procedure SetUserID(const Value: string);
+    procedure SetUserLevel(const Value: integer);
+    procedure SetUserName(const Value: string);
   public
     constructor Create;
     destructor Destroy; override;
@@ -40,26 +48,28 @@ type
     Tag : integer;
     TagStr : string;
 
-    /// Dummy property.
-    UserData : pointer;
+    /// Extra user information
+    UserData : TJsonData;
 
     IdleCount : integer;
 
     /// Predeclare frequently used variables
     IsLogined : boolean;
-    IsMuted : boolean;
     RoomID : string;
     Room : TObject;
-    UserID : string;
     UserPW : string;
-    UserName : string;
-    UserLevel : integer;
 
     /// Indicates whether the current connection is connected.
     property IsConnected : boolean read GetIsConnected;
 
     /// The unique ID of the current connection assigned in TConnectionList.
     property ID : integer read FID;
+
+    /// frequently used properties
+    property IsMuted : boolean read GetIsMuted write SetIsMuted;
+    property UserID : string read GetUserID write SetUserID;
+    property UserName : string read GetUserName write SetUserName;
+    property UserLevel : integer read GetUserLevel write SetUserLevel;
 
     /// Information of TConnection object in json format.
     property Text : string read GetText;
@@ -275,6 +285,7 @@ begin
 
   FSocket := 0;
 
+  UserData := TJsonData.Create;
   FPacketReader := TPacketReader.Create;
 
   do_Init;
@@ -282,6 +293,7 @@ end;
 
 destructor TConnection.Destroy;
 begin
+  FreeAndNil(UserData);
   FreeAndNil(FPacketReader);
 
   inherited;
@@ -299,7 +311,6 @@ begin
   IsMuted := false;
   RoomID := '';
   Room := nil;
-  UserData := nil;
   UserID:= '';
   UserName := '';
   UserPW := '';
@@ -333,17 +344,56 @@ begin
   Result := FSocket <> INVALID_SOCKET;
 end;
 
-function TConnection.GetText: string;
-const
-  fmt = '{"id": %d, "user_id": "%s", "user_name": "%s", "user_level": %d, "is_muted": %d}';
+function TConnection.GetIsMuted: boolean;
 begin
-  Result := Format(fmt, [FID, UserID, UserName, UserLevel, Integer(IsMuted)]);
+  Result := UserData.Booleans['is_muted'];
+end;
+
+function TConnection.GetText: string;
+begin
+  UserData.Integers['id'] := FID;
+  Result := UserData.Text;
+end;
+
+function TConnection.GetUserID: string;
+begin
+  Result := UserData.Values['user_id'];
+end;
+
+function TConnection.GetUserLevel: integer;
+begin
+  Result := UserData.Integers['user_level'];
+end;
+
+function TConnection.GetUserName: string;
+begin
+  Result := UserData.Values['user_name'];
 end;
 
 procedure TConnection.Send(APacket: PPacket);
 begin
   if (FSocket <> INVALID_SOCKET) and (APacket <> nil) then
     FSuperSocketServer.FCompletePort.Send(Self, APacket, APacket^.PacketSize);
+end;
+
+procedure TConnection.SetIsMuted(const Value: boolean);
+begin
+  UserData.Booleans['is_muted'] := Value;
+end;
+
+procedure TConnection.SetUserID(const Value: string);
+begin
+  UserData.Values['user_id'] := Value;
+end;
+
+procedure TConnection.SetUserLevel(const Value: integer);
+begin
+  UserData.Integers['user_level'] := Value;
+end;
+
+procedure TConnection.SetUserName(const Value: string);
+begin
+  UserData.Values['user_name'] := Value;
 end;
 
 { TIODataPool }
