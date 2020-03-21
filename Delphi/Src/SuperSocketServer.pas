@@ -16,6 +16,7 @@ type
   private
     FPacketReader : TPacketReader;
     procedure do_Init;
+    procedure do_Close;
     procedure do_PacketIn(AData:pointer; ASize:integer);
   private
     FSuperSocketServer : TSuperSocketServer;
@@ -279,6 +280,12 @@ end;
 
 { TConnection }
 
+procedure TConnection.do_Close;
+begin
+  if FSocket <> INVALID_SOCKET then closesocket(FSocket);
+  FSocket := INVALID_SOCKET;
+end;
+
 constructor TConnection.Create;
 begin
   inherited;
@@ -319,10 +326,9 @@ begin
 
   IdleCount := 0;
 
-  if FSocket <> INVALID_SOCKET then closesocket(FSocket);
-  FSocket := INVALID_SOCKET;
-
   FPacketReader.Clear;
+
+  do_Close;
 end;
 
 procedure TConnection.do_PacketIn(AData: pointer; ASize: integer);
@@ -811,7 +817,7 @@ end;
 procedure TConnectionList.Remove(AConnection: TConnection);
 begin
   if AConnection.FID <> 0 then Dec(FCount);
-  AConnection.FID := 0;
+  AConnection.do_Close;
 end;
 
 procedure TConnectionList.TerminateAll;
@@ -924,6 +930,7 @@ procedure TSuperSocketServer.on_FCompletePort_Disconnect(ATransferred: DWord;
 begin
   FConnectionList.Remove(AIOData^.Connection);
   if Assigned(FOnDisconnected) then FOnDisconnected(AIOData^.Connection);
+  AIOData^.Connection.do_Init;
 end;
 
 procedure TSuperSocketServer.on_FCompletePort_Received(ATransferred: DWord;
