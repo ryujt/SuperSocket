@@ -7,7 +7,7 @@ uses
   Windows, SysUtils, Classes, WinSock2, AnsiStrings, TypInfo;
 
 type
-  TIOStatus = (ioStart, ioStop, ioAccepted, ioSend, ioRecv, ioDisconnect);
+  TIOStatus = (ioStart, ioStop, ioAccepted, ioSend, ioRecv, ioDisconnect, ioUserEvent);
 
   TSuperSocketServer = class;
 
@@ -83,6 +83,8 @@ type
     Socket : integer;
     RemoteIP : string;
     Connection : TConnection;
+    EventCode : integer;
+    EventData : pointer;
   end;
   PIOData = ^TIOData;
 
@@ -149,12 +151,16 @@ type
     procedure Receive(AConnection:TConnection);
     procedure Send(AConnection:TConnection; AData:pointer; ASize:word);
     procedure Disconnect(AConnection:TConnection);
+    procedure UserEvent(AConnection:TConnection; AEventCode:integer; AEventData:pointer);
+  private
+    FOnUserEvent: TCompletePortEvent;
   public
     property OnStart : TCompletePortEvent read FOnStart write FOnStart;
     property OnStop : TCompletePortEvent read FOnStop write FOnStop;
     property OnAccepted : TCompletePortEvent read FOnAccepted write FOnAccepted;
     property OnReceived : TCompletePortEvent read FOnReceived write FOnReceived;
     property OnDisconnect : TCompletePortEvent read FOnDisconnect write FOnDisconnect;
+    property OnUserEvent : TCompletePortEvent read FOnUserEvent write FOnUserEvent;
   end;
 
   TConnectionList = class
@@ -181,6 +187,7 @@ type
 
   TSuperSocketServerEvent = procedure (AConnection:TConnection) of object;
   TSuperSocketServerReceivedEvent = procedure (AConnection:TConnection; APacket:PPacket) of object;
+  TSuperSocketServerUserEvent = procedure (AConnection:TConnection; AEventCode:integer; AEventData:pointer) of object;
 
   /// TCP socket server using IOCP.
   TSuperSocketServer = class
@@ -197,10 +204,12 @@ type
     procedure on_FCompletePort_Accepted(ATransferred:DWord; AIOData:PIOData);
     procedure on_FCompletePort_Received(ATransferred:DWord; AIOData:PIOData);
     procedure on_FCompletePort_Disconnect(ATransferred:DWord; AIOData:PIOData);
+    procedure on_FCompletePort_UserEvent(ATransferred:DWord; AIOData:PIOData);
   private
     FOnConnected: TSuperSocketServerEvent;
     FOnDisconnected: TSuperSocketServerEvent;
     FOnReceived: TSuperSocketServerReceivedEvent;
+    FOnUserEvent: TSuperSocketServerUserEvent;
     procedure SetPort(const Value: integer);
     function GetUseNagel: boolean;
     procedure SetUseNagel(const Value: boolean);
@@ -234,6 +243,13 @@ type
     @param APacket a message to send.
     }
     procedure SendToOther(AConnection:TConnection; APacket:PPacket);
+
+    {* Make user defined event. You can synchronize external thread messages with this procedure.
+      @param AConnection the connection to exclude.
+      @param AEventCode Code to categorize event messages
+      @param AEventData User data for passing detail information of the event
+    }
+    procedure UserEvent(AConnection:TConnection; AEventCode:integer; AEventData:pointer=nil);
   public
     /// Port number for the server to use.
     property Port : integer read GetPort write SetPort;
@@ -252,6 +268,9 @@ type
 
     /// Use OnDisconnected to perform special processing when a connection has new packet.
     property OnReceived : TSuperSocketServerReceivedEvent read FOnReceived write FOnReceived;
+
+    /// Use OnUserEvent to synchronize external thread messages.
+    property OnUserEvent : TSuperSocketServerUserEvent read FOnUserEvent write FOnUserEvent;
   end;
 
 implementation
@@ -635,6 +654,8 @@ begin
       end;
 
       ioDisconnect: do_FireDisconnectEvent(pData);
+
+      ioUserEvent: if Assigned(FOnUserEvent) then FOnUserEvent(Transferred, pData);
     end;
 
     FIODataPool.Release(pData);
@@ -720,6 +741,24 @@ var
 begin
   pData := FIODataPool.Get;
   pData^.Status := ioStop;
+
+  if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
+    Trace('TCompletePort.Stop - PostQueuedCompletionStatus Error');
+
+    FIODataPool.Release(pData);
+  end;
+end;
+
+procedure TCompletePort.UserEvent(AConnection: TConnection;
+  AEventCode: integer; AEventData:pointer);
+var
+  pData : PIOData;
+begin
+  pData := FIODataPool.Get;
+  pData^.Status := ioUserEvent;
+  pData^.Connection := AConnection;
+  pData^.EventCode := AEventCode;
+  pData^.EventData := AEventData;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
     Trace('TCompletePort.Stop - PostQueuedCompletionStatus Error');
@@ -856,6 +895,7 @@ begin
   FCompletePort.OnAccepted   := on_FCompletePort_Accepted;
   FCompletePort.OnReceived   := on_FCompletePort_Received;
   FCompletePort.OnDisconnect := on_FCompletePort_Disconnect;
+  FCompletePort.OnUserEvent  := on_FCompletePort_UserEvent;
 
   if not AIdleCheck then begin
     FIdleCountThread := nil;
@@ -964,6 +1004,12 @@ begin
   FListener.Stop;
 end;
 
+procedure TSuperSocketServer.on_FCompletePort_UserEvent(ATransferred: DWord;
+  AIOData: PIOData);
+begin
+  if Assigned(FOnUserEvent) then FOnUserEvent(AIOData^.Connection, AIOData^.EventCode, AIOData^.EventData);
+end;
+
 procedure TSuperSocketServer.on_FListener_Accepted(ASocket: integer;
   const ARemoteIP: string);
 begin
@@ -1018,6 +1064,12 @@ end;
 procedure TSuperSocketServer.Stop;
 begin
   FCompletePort.Stop;
+end;
+
+procedure TSuperSocketServer.UserEvent(AConnection: TConnection;
+  AEventCode: integer; AEventData:pointer);
+begin
+  FCompletePort.UserEvent(AConnection, AEventCode, AEventData);
 end;
 
 end.
