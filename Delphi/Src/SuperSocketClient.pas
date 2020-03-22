@@ -188,7 +188,7 @@ begin
   FPacketReader := TPacketReader.Create;
   FIODataPool := TIODataPool.Create;
   FMemoryPool := TMemoryPool.Create;
-  FSimpleThread := TSimpleThread.Create('TSuperSocketClient', on_FSimpleThread_Execute);
+  FSimpleThread := TSimpleThread.Create('TSuperSocketClient.CompletePort', on_FSimpleThread_Execute);
 end;
 
 destructor TCompletePort.Destroy;
@@ -216,6 +216,8 @@ procedure TCompletePort.do_Connect(AData: PIOData);
 var
   Addr : TSockAddrIn;
 begin
+  FSimpleThread.Name := Format('TCompletePort.CompletePort(%d)', [AData^.Port]);
+
   FPacketReader.Clear;
 
   IdleCount := 0;
@@ -332,7 +334,7 @@ begin
       end;
 
       do_DisconnectWithEvent;
-      FIODataPool.Release(pData);
+      if pData <> nil then FIODataPool.Release(pData);
 
       Continue;
     end;

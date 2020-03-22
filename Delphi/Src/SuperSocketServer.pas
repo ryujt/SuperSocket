@@ -4,7 +4,7 @@ interface
 
 uses
   RyuLibBase, DebugTools, SuperSocketUtils, SimpleThread, DynamicQueue, JsonData,
-  Windows, SysUtils, Classes, WinSock2, AnsiStrings;
+  Windows, SysUtils, Classes, WinSock2, AnsiStrings, TypInfo;
 
 type
   TIOStatus = (ioStart, ioStop, ioAccepted, ioSend, ioRecv, ioDisconnect);
@@ -125,6 +125,7 @@ type
 
   TCompletePort = class
   strict private
+    FPort : integer;
     FCompletionPort : THandle;
     FIODataPool : TIODataPool;
     FMemoryPool : TMemoryPool;
@@ -142,7 +143,7 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    procedure Start;
+    procedure Start(APort:integer);
     procedure Stop;
     procedure Accepted(ASocket:integer; const ARemoteIP:string);
     procedure Receive(AConnection:TConnection);
@@ -160,6 +161,7 @@ type
   strict private
     FID : integer;
     FCount : integer;
+    FNullConnection : TConnection;
     FConnections : array [0..CONNECTION_POOL_SIZE-1] of TConnection;
     function GetConnection(AIndex:integer):TConnection;
   public
@@ -241,7 +243,7 @@ type
 
     /// A list of connections in TSuperSocketServer.
     property ConnectionList : TConnectionList read FConnectionList;
-  published
+  public
     /// Use OnConnected to perform special processing when the new connection created.
     property OnConnected : TSuperSocketServerEvent read FOnConnected write FOnConnected;
 
@@ -520,7 +522,7 @@ var
   pData : PIOData;
 begin
   if CreateIoCompletionPort(ASocket, FCompletionPort, 0, 0) = 0 then begin
-    Trace('TCompletePort.CreateIoCompletionPort Error');
+    Trace('TSuperSocketServer.CreateIoCompletionPort Error');
 
     closesocket(ASocket);
     Exit;
@@ -532,7 +534,7 @@ begin
   pData^.RemoteIP := ARemoteIP;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
-    Trace('TCompletePort.Accepted - PostQueuedCompletionStatus Error');
+    Trace('TSuperSocketServer.Accepted - PostQueuedCompletionStatus Error');
 
     closesocket(ASocket);
     FIODataPool.Release(pData);
@@ -545,7 +547,7 @@ begin
 
   FIODataPool := TIODataPool.Create;
   FMemoryPool := TMemoryPool.Create;
-  FSimpleThread := TSimpleThread.Create('TCompletePort.Create', on_FSimpleThread_Execute);
+  FSimpleThread := TSimpleThread.Create('TSuperSocketServer.CompletePort', on_FSimpleThread_Execute);
 end;
 
 destructor TCompletePort.Destroy;
@@ -568,7 +570,7 @@ begin
   pData^.Connection := AConnection;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
-    Trace('TCompletePort.Disconnect - PostQueuedCompletionStatus Error');
+    Trace('TSuperSocketServer.Disconnect - PostQueuedCompletionStatus Error');
 
     FIODataPool.Release(pData);
   end;
@@ -596,25 +598,27 @@ begin
   while not ASimpleThread.Terminated do begin
     isGetOk := GetQueuedCompletionStatus(FCompletionPort, Transferred, Key, POverlapped(pData), INFINITE);
 
-    isCondition :=
-      (pData <> nil) and ((Transferred = 0) or (not isGetOk));
+    if pData = nil then Continue;
+
+    isCondition := ((Transferred = 0) or (not isGetOk));
     if isCondition then begin
       if not isGetOk then begin
         LastError := WSAGetLastError;
-        Trace(Format('TCompletePort.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+        Trace(Format('TSuperSocketServer.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
       end;
 
       do_FireDisconnectEvent(pData);
-
       FIODataPool.Release(pData);
 
       Continue;
     end;
 
-    if pData = nil then Continue;
-
     case pData^.Status of
-      ioStart: if Assigned(FOnStart) then FOnStart(Transferred, pData);
+      ioStart: begin
+        ASimpleThread.Name := Format('TSuperSocketServer.CompletePort(%d)', [FPort]);
+        if Assigned(FOnStart) then FOnStart(Transferred, pData);
+      end;
+
       ioStop: if Assigned(FOnStop) then FOnStop(Transferred, pData);
 
       ioAccepted: begin
@@ -694,10 +698,12 @@ begin
   end;
 end;
 
-procedure TCompletePort.Start;
+procedure TCompletePort.Start(APort:integer);
 var
   pData : PIOData;
 begin
+  FPort := APort;
+
   pData := FIODataPool.Get;
   pData^.Status := ioStart;
 
@@ -728,7 +734,7 @@ function TConnectionList.Add(ASocket:integer; const ARemoteIP:string): TConnecti
 var
   iCount : integer;
 begin
-  Result := nil;
+  Result := FNullConnection;
 
   iCount := 0;
   while true do begin
@@ -770,6 +776,9 @@ begin
   FID := 0;
   FCount := 0;
 
+  FNullConnection := TConnection.Create;
+  FNullConnection.do_Init;
+
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
     FConnections[Loop] := TConnection.Create;
     FConnections[Loop].FSuperSocketServer := ASuperSocketServer;
@@ -782,6 +791,8 @@ var
 begin
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do FConnections[Loop].Free;
 
+  FreeAndNil(FNullConnection);
+
   inherited;
 end;
 
@@ -790,7 +801,7 @@ var
   Loop: Integer;
   Connection : TConnection;
 begin
-  Result := nil;
+  Result := FNullConnection;
 
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
     Connection := FConnections[Loop];
@@ -807,10 +818,11 @@ end;
 
 function TConnectionList.GetConnection(AIndex: integer): TConnection;
 begin
-  Result := nil;
+  Result := FNullConnection;
 
-  if AIndex <> 0 then begin
+  if AIndex > 0 then begin
     Result := FConnections[DWord(AIndex) mod CONNECTION_POOL_SIZE];
+    if Result.ID = 0 then Result := FNullConnection;
   end;
 end;
 
@@ -1000,7 +1012,7 @@ end;
 
 procedure TSuperSocketServer.Start;
 begin
-  FCompletePort.Start;
+  FCompletePort.Start(FListener.Port);
 end;
 
 procedure TSuperSocketServer.Stop;
