@@ -62,6 +62,7 @@ type
     destructor Destroy; override;
 
     procedure Terminate;
+    procedure TerminateNow;
 
     procedure Connect(const AHost:string; APort:integer);
     procedure Disconnect;
@@ -408,6 +409,11 @@ begin
   end;
 end;
 
+procedure TCompletePort.TerminateNow;
+begin
+  FSimpleThread.TerminateNow;
+end;
+
 procedure TCompletePort.Send(APacket: PPacket);
 var
   packet : PPacket;
@@ -513,7 +519,7 @@ end;
 procedure TSuperSocketClient.Terminate;
 begin
   if FIdleCountThread <> nil then FIdleCountThread.TerminateNow;
-  FCompletePort.Terminate;
+  FCompletePort.TerminateNow;
 end;
 
 end.
