@@ -285,7 +285,7 @@ begin
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
   while FPacketReader.canRead do begin
     PacketPtr := FPacketReader.Read;
-    if Assigned(FSocketClient.FOnReceived) and (PacketPtr^.PacketType <> 255) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
+    if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
   end;
 end;
 
