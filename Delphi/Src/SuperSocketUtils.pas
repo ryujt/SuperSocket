@@ -192,19 +192,15 @@ end;
 
 class function TPacket.GetPacket(APacketType: byte; const AText: string): PPacket;
 var
-  ssData : TStringStream;
+  utf8 : UTF8String;
 begin
   if AText = '' then begin
     Result := TPacket.GetPacket(APacketType, nil, 0);
     Exit;
   end;
 
-  ssData := TStringStream.Create(AText);
-  try
-    Result := TPacket.GetPacket(APacketType, ssData.Memory, ssData.Size);
-  finally
-    ssData.Free;
-  end;
+  utf8 := AText;
+  Result := TPacket.GetPacket(APacketType, @utf8[1], Length(utf8));
 end;
 
 class function TPacket.GetPacket(APacketType:byte; AData:pointer; ASize:integer): PPacket;
@@ -218,17 +214,11 @@ end;
 
 function TPacket.GetText: string;
 var
-  ssData : TStringStream;
+  utf8 : UTF8String;
 begin
-  ssData := TStringStream.Create;
-  try
-    ssData.Write(DataStart, GetDataSize);
-    ssData.Position := 0;
-
-    Result := Result + ssData.DataString;
-  finally
-    ssData.Free
-  end;
+  SetLength(utf8, GetDataSize);
+  Move(DataStart, utf8[1], GetDataSize);
+  Result := utf8;
 end;
 
 function TPacket.GetDataSize: word;
