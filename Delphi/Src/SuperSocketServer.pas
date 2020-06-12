@@ -22,7 +22,6 @@ type
     FSuperSocketServer : TSuperSocketServer;
     FID : integer;
     FSocket : TSocket;
-    FRemoteIP : string;
     function GetIsConnected: boolean;
     function GetText: string;
     function GetIsMuted: boolean;
@@ -33,6 +32,8 @@ type
     procedure SetUserID(const Value: string);
     procedure SetUserLevel(const Value: integer);
     procedure SetUserName(const Value: string);
+    function GetRemoteIP: string;
+    procedure SetRemoteIP(const Value: string);
   public
     constructor Create;
     destructor Destroy; override;
@@ -65,6 +66,8 @@ type
 
     /// The unique ID of the current connection assigned in TConnectionList.
     property ID : integer read FID;
+
+    property RemoteIP : string read GetRemoteIP write SetRemoteIP;
 
     /// frequently used properties
     property IsMuted : boolean read GetIsMuted write SetIsMuted;
@@ -335,15 +338,11 @@ end;
 procedure TConnection.do_Init;
 begin
   FID := 0;
-  FRemoteIP := '';
-  IsMuted := false;
   RoomID := '';
   Room := nil;
-  UserID:= '';
-  UserName := '';
   UserPW := '';
-  UserLevel := 0;
   IsLogined := false;
+  UserData.Text := '';
 
   IdleCount := 0;
 
@@ -376,6 +375,11 @@ begin
   Result := UserData.Booleans['is_muted'];
 end;
 
+function TConnection.GetRemoteIP: string;
+begin
+  Result := UserData.Values['remote_ip'];
+end;
+
 function TConnection.GetText: string;
 begin
   UserData.Integers['id'] := FID;
@@ -406,6 +410,11 @@ end;
 procedure TConnection.SetIsMuted(const Value: boolean);
 begin
   UserData.Booleans['is_muted'] := Value;
+end;
+
+procedure TConnection.SetRemoteIP(const Value: string);
+begin
+  UserData.Values['remote_ip'] := Value;
 end;
 
 procedure TConnection.SetUserID(const Value: string);
@@ -796,7 +805,7 @@ begin
       Result.FID := Random($4096) * CONNECTION_POOL_SIZE + FID;
 
       Result.FSocket := ASocket;
-      Result.FRemoteIP := ARemoteIP;
+      Result.RemoteIP := ARemoteIP;
       Result.RoomID := '';
       Result.Room := nil;
       Break;
