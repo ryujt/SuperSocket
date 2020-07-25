@@ -49,6 +49,7 @@ type
     /// Dummy property as like TComponent.Tag.
     Tag : integer;
     TagStr : string;
+    TagObject : TObject;
 
     /// Extra user information
     UserData : TJsonData;
