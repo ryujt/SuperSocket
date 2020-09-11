@@ -282,7 +282,7 @@ var
 begin
   IdleCount := 0;
 
-  FPacketReader.Write('TSuperSocketClient', AData, ASize);
+  FPacketReader.Write(AData, ASize);
 
   if FPacketReader.VerifyPacket = false then begin
     Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');

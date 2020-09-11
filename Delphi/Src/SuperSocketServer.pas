@@ -358,7 +358,7 @@ var
 begin
   IdleCount := 0;
 
-  FPacketReader.Write(UserName, AData, ASize);
+  FPacketReader.Write(AData, ASize);
 
   if FPacketReader.VerifyPacket = false then begin
     Trace('TConnection.do_PacketIn - FPacketReader.VerifyPacket = false, ' + Text);
