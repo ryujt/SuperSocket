@@ -359,10 +359,23 @@ begin
   IdleCount := 0;
 
   FPacketReader.Write(UserName, AData, ASize);
+
+  if FPacketReader.VerifyPacket = false then begin
+    Trace('TConnection.do_PacketIn - FPacketReader.VerifyPacket = false, ' + Text);
+    Disconnect;
+    Exit;
+  end;
+
   while FPacketReader.canRead do begin
     PacketPtr := FPacketReader.Read;
     if PacketPtr^.PacketType = 255 then Send(@NilPacket)
     else if Assigned(FSuperSocketServer.FOnReceived) then FSuperSocketServer.FOnReceived(Self, PacketPtr);
+
+    if FPacketReader.VerifyPacket = false then begin
+      Trace('TConnection.do_PacketIn - FPacketReader.VerifyPacket = false, ' + Text);
+      Disconnect;
+      Exit;
+    end;
   end;
 end;
 

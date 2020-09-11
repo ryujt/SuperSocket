@@ -283,9 +283,22 @@ begin
   IdleCount := 0;
 
   FPacketReader.Write('TSuperSocketClient', AData, ASize);
+
+  if FPacketReader.VerifyPacket = false then begin
+    Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
+    Disconnect;
+    Exit;
+  end;
+
   while FPacketReader.canRead do begin
     PacketPtr := FPacketReader.Read;
     if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
+
+    if FPacketReader.VerifyPacket = false then begin
+      Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
+      Disconnect;
+      Exit;
+    end;
   end;
 end;
 

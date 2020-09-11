@@ -76,16 +76,18 @@ type
     destructor Destroy; override;
 
     procedure Clear;
-    procedure Write(const AID:string; AData:pointer; ASize:integer);
+    procedure Write(AData:pointer; ASize:integer);
     function Read:PPacket;
     function canRead:boolean;
+    function canReadSize:boolean;
 
     {*
       Check where packet is broken.
       If it is, VerifyPacket will clear all packet inside.
-      @param AID Identification of Connection for debug foot-print.
     }
-    procedure VerifyPacket(const AID:string);
+    function VerifyPacket:boolean;
+  public
+    property BufferSize : integer read FBufferSize;
   end;
 
 var
@@ -246,6 +248,19 @@ begin
   Result := (FBufferSize > 0) and (FBufferSize >= PacketPtr^.PacketSize);
 end;
 
+function TPacketReader.canReadSize: boolean;
+var
+  PacketPtr : PPacket;
+begin
+  if FOffsetPtr = nil then begin
+    Result := false;
+    Exit;
+  end;
+
+  PacketPtr := Pointer(FOffsetPtr);
+  Result := (FBufferSize > 0) and (FBufferSize >= SizeOf(Word));
+end;
+
 procedure TPacketReader.Clear;
 begin
   FBufferSize := 0;
@@ -289,21 +304,24 @@ begin
   FOffsetPtr := FOffsetPtr + Result^.PacketSize;
 end;
 
-procedure TPacketReader.VerifyPacket(const AID:string);
+function TPacketReader.VerifyPacket:boolean;
 var
   PacketPtr : PPacket;
 begin
-  if not canRead then Exit;
+  Result := true;
+
+  if not canReadSize then Exit;
 
   PacketPtr := Pointer(FOffsetPtr);
+  Result := PacketPtr^.PacketSize <= PACKET_SIZE;
 
-  if PacketPtr.PacketSize > PACKET_SIZE then begin
-    Trace( Format('TPacketReader.VerifyPacket (%s) - PacketPtr.Size(%d) > PACKET_SIZE', [AID, PacketPtr.PacketSize]) );
-    Clear;
-  end;
+  {$IFDEF DEBUG}
+  if Result = false then
+    Trace( Format('TPacketReader.VerifyPacket - Size: %d', [PacketPtr^.PacketSize]) );
+  {$ENDIF}
 end;
 
-procedure TPacketReader.Write(const AID: string; AData: pointer; ASize: integer);
+procedure TPacketReader.Write(AData: pointer; ASize: integer);
 var
   iNewSize : integer;
   pNewData : pointer;
@@ -341,8 +359,6 @@ begin
   end;
 
   FBufferSize := iNewSize;
-
-  VerifyPacket(AID);
 end;
 
 initialization
