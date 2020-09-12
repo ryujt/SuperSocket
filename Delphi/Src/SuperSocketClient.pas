@@ -67,6 +67,8 @@ type
     procedure Connect(const AHost:string; APort:integer);
     procedure Disconnect;
     procedure Send(APacket:PPacket);
+
+    procedure Disconnected;
     procedure IdleCountTimeout;
   private
     function GetConnected: boolean;
@@ -212,6 +214,19 @@ begin
   end;
 end;
 
+procedure TCompletePort.Disconnected;
+var
+  pData : PIOData;
+begin
+  pData := FIODataPool.Get;
+  pData^.Status := ioDisconnected;
+
+  if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
+    Trace('TSuperSocketClient.Disconnected - PostQueuedCompletionStatus Error');
+    FIODataPool.Release(pData);
+  end;
+end;
+
 procedure TCompletePort.do_Connect(AData: PIOData);
 
 var
@@ -286,7 +301,7 @@ begin
 
   if FPacketReader.VerifyPacket = false then begin
     Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
-    Disconnect;
+    Disconnected;
     Exit;
   end;
 
@@ -296,7 +311,7 @@ begin
 
     if FPacketReader.VerifyPacket = false then begin
       Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
-      Disconnect;
+      Disconnected;
       Exit;
     end;
   end;
@@ -368,6 +383,8 @@ begin
       end;
 
       ioTerminate: do_Terminate;
+
+      ioDisconnected,
       ioIdleCountTimeout: do_DisconnectWithEvent;
     end;
 
