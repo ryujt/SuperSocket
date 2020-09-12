@@ -278,7 +278,7 @@ begin
   end;
 
   PacketPtr := Pointer(FOffsetPtr);
-  Result := (FBufferSize > 0) and (FBufferSize >= SizeOf(Word));
+  Result := FBufferSize >= SizeOf(Word);
 end;
 
 procedure TPacketReader.Clear;
