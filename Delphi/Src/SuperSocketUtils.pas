@@ -336,8 +336,9 @@ begin
   Result := PacketPtr^.PacketSize <= PACKET_SIZE;
 
   {$IFDEF DEBUG}
-  if Result = false then
+  if Result = false then begin
     Trace( Format('TPacketReader.VerifyPacket - Size: %d', [PacketPtr^.PacketSize]) );
+  end;
   {$ENDIF}
 end;
 
