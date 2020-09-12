@@ -34,6 +34,7 @@ type
     procedure SetUserName(const Value: string);
     function GetRemoteIP: string;
     procedure SetRemoteIP(const Value: string);
+    function GetIsAvailable: boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -61,9 +62,12 @@ type
     RoomID : string;
     Room : TObject;
     UserPW : string;
-
+  public
     /// Indicates whether the current connection is connected.
     property IsConnected : boolean read GetIsConnected;
+
+    /// Indicates whether the current connection is Logined and connected.
+    property IsAvailable : boolean read GetIsAvailable;
 
     /// The unique ID of the current connection assigned in TConnectionList.
     property ID : integer read FID;
@@ -382,6 +386,11 @@ end;
 function TConnection.GetIsConnected: boolean;
 begin
   Result := FSocket <> INVALID_SOCKET;
+end;
+
+function TConnection.GetIsAvailable: boolean;
+begin
+  Result := IsLogined and (FSocket <> INVALID_SOCKET);
 end;
 
 function TConnection.GetIsMuted: boolean;
@@ -889,7 +898,7 @@ begin
   for Loop := 0 to CONNECTION_POOL_SIZE-1 do begin
     Connection := FConnections[Loop];
     if Connection.FID = 0 then Continue;
-    if Connection.IsLogined = false then Continue;
+    if Connection.IsAvailable = false then Continue;
     if Connection.FSocket = INVALID_SOCKET then Continue;
 
     if Connection.UserID = AUserID then begin
@@ -958,8 +967,7 @@ begin
           Connection := ConnectionList.Items[Loop];
 
           if Connection = nil then Continue;
-          if Connection.FSocket = INVALID_SOCKET then Continue;
-          if Connection.IsLogined = false then Continue;
+          if Connection.IsAvailable = false then Continue;
 
           {$IFDEF DEBUG}
           //Trace( Format('TConnection - IdleCount (%d, %d)', [Connection.ID, Connection.IdleCount]) );
