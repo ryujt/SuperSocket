@@ -40,7 +40,7 @@ type
     FPacketReader : TPacketReader;
     FCompletionPort : THandle;
     FIODataPool : TIODataPool;
-    FMemoryPool : TMemoryPool;
+    FMemoryRecylce : TMemoryRecylce;
 
     procedure start_Receive;
 
@@ -190,7 +190,7 @@ begin
   FCompletionPort := CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
   FPacketReader := TPacketReader.Create;
   FIODataPool := TIODataPool.Create;
-  FMemoryPool := TMemoryPool.Create;
+  FMemoryRecylce := TMemoryRecylce.Create;
   FSimpleThread := TSimpleThread.Create('TSuperSocketClient.CompletePort', on_FSimpleThread_Execute);
 end;
 
@@ -379,7 +379,7 @@ begin
       ioRecv: begin
         start_Receive;
         do_Receive(pData^.wsaBuffer.buf, Transferred);
-        FMemoryPool.Release(pData.wsaBuffer.buf);
+        FMemoryRecylce.Release(pData.wsaBuffer.buf);
       end;
 
       ioTerminate: do_Terminate;
@@ -395,7 +395,7 @@ begin
 
   FreeAndNil(FPacketReader);
   FreeAndNil(FIODataPool);
-  FreeAndNil(FMemoryPool);
+  FreeAndNil(FMemoryRecylce);
   CloseHandle(FCompletionPort);
 end;
 
@@ -408,7 +408,7 @@ begin
   if FSocket = INVALID_SOCKET then Exit;
 
   pData := FIODataPool.Get;
-  PData^.wsaBuffer.buf := FMemoryPool.Get;
+  PData^.wsaBuffer.buf := FMemoryRecylce.Get;
   pData^.wsaBuffer.len := PACKET_SIZE;
   pData^.Status := ioRecv;
 
