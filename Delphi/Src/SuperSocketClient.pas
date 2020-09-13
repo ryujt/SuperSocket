@@ -82,6 +82,8 @@ type
 
   TSuperSocketClient = class
   private
+    FHost : string;
+    FPort : integer;
     FCompletePort : TCompletePort;
     FIdleCountThread : TSimpleThread;
   private
@@ -312,7 +314,7 @@ begin
   FPacketReader.Write(AData, ASize);
 
   if FPacketReader.VerifyPacket = false then begin
-    Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
+    Trace( Format('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, Port: %d', [Self.FSocketClient.FPort]) );
 
     Disconnected;
     Exit;
@@ -323,7 +325,8 @@ begin
     if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
 
     if FPacketReader.VerifyPacket = false then begin
-      Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
+      Trace( Format('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, Port: %d', [Self.FSocketClient.FPort]) );
+
       Disconnected;
       Exit;
     end;
@@ -501,6 +504,9 @@ end;
 
 procedure TSuperSocketClient.Connect(const AHost: string; APort: integer);
 begin
+  FHost := AHost;
+  FPort := APort;
+
   FCompletePort.Connect(AHost, APort);
 end;
 
@@ -521,6 +527,7 @@ begin
     begin
       while ASimpleThread.Terminated = false do begin
         if FCompletePort.Connected and (InterlockedIncrement(FCompletePort.IdleCount) > 5) then begin
+          FCompletePort.IdleCount := 0;
           FCompletePort.IdleCountTimeout;
 
           {$IFDEF DEBUG}
