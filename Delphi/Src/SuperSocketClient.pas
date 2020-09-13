@@ -171,7 +171,10 @@ begin
   pData^.Port := APort;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
+    {$IFDEF DEBUG}
     Trace('TSuperSocketClient.Connect - PostQueuedCompletionStatus Error');
+    {$ENDIF}
+
     FIODataPool.Release(pData);
   end;
 end;
@@ -209,7 +212,10 @@ begin
   pData^.Status := ioDisconnect;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
+    {$IFDEF DEBUG}
     Trace('TSuperSocketClient.Disconnect - PostQueuedCompletionStatus Error');
+    {$ENDIF}
+
     FIODataPool.Release(pData);
   end;
 end;
@@ -222,7 +228,10 @@ begin
   pData^.Status := ioDisconnected;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
+    {$IFDEF DEBUG}
     Trace('TSuperSocketClient.Disconnected - PostQueuedCompletionStatus Error');
+    {$ENDIF}
+
     FIODataPool.Release(pData);
   end;
 end;
@@ -253,7 +262,10 @@ begin
     SetSocketDelayOption(FSocket, FUseNagel);
 
     if CreateIoCompletionPort(FSocket, FCompletionPort, 0, 0) = 0 then begin
+      {$IFDEF DEBUG}
       Trace('TSuperSocketClient.CreateIoCompletionPort Error');
+      {$ENDIF}
+
       closesocket(FSocket);
       FSocket := INVALID_SOCKET;
       Exit;
@@ -301,6 +313,7 @@ begin
 
   if FPacketReader.VerifyPacket = false then begin
     Trace('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, ');
+
     Disconnected;
     Exit;
   end;
@@ -357,10 +370,12 @@ begin
     isCondition :=
       (pData <> nil) and ((Transferred = 0) or (not isGetOk));
     if isCondition then begin
+      {$IFDEF DEBUG}
       if not isGetOk then begin
         LastError := WSAGetLastError;
         Trace(Format('TSuperSocketClient.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
       end;
+      {$ENDIF}
 
       do_DisconnectWithEvent;
       if pData <> nil then FIODataPool.Release(pData);
@@ -418,7 +433,9 @@ begin
   if recv_ret = SOCKET_ERROR then begin
     LastError := WSAGetLastError;
     if LastError <> ERROR_IO_PENDING then begin
+      {$IFDEF DEBUG}
       Trace(Format('TSuperSocketClient.start_Receive - %s', [SysErrorMessage(LastError)]));
+      {$ENDIF}
 
       do_DisconnectWithEvent;
       FIODataPool.Release(pData);
@@ -434,7 +451,10 @@ begin
   pData^.Status := ioTerminate;
 
   if not PostQueuedCompletionStatus(FCompletionPort, SizeOf(pData), 0, POverlapped(pData)) then begin
+    {$IFDEF DEBUG}
     Trace('TSuperSocketClient.Terminate - PostQueuedCompletionStatus Error');
+    {$ENDIF}
+
     FIODataPool.Release(pData);
   end;
 end;
@@ -466,7 +486,9 @@ begin
   if ErrorCode = SOCKET_ERROR then begin
     LastError := WSAGetLastError;
     if LastError <> ERROR_IO_PENDING then begin
+      {$IFDEF DEBUG}
       Trace(Format('TSuperSocketClient.Send - %s', [SysErrorMessage(LastError)]));
+      {$ENDIF}
 
       do_DisconnectWithEvent;
       FreeMem(packet);
