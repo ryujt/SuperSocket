@@ -726,7 +726,7 @@ begin
     LastError := WSAGetLastError;
     if LastError <> ERROR_IO_PENDING then begin
       {$IFDEF DEBUG}
-      Trace(Format('TCompletePort.Receive - %s', [SysErrorMessage(LastError)]));
+      Trace( Format('TCompletePort.Receive - %s', [SysErrorMessage(LastError)]) );
       {$ENDIF}
 
       do_FireDisconnectEvent(pData);
@@ -744,6 +744,11 @@ var
 begin
   if AConnection.FSocket = INVALID_SOCKET then Exit;
 
+  if ASize > PACKET_SIZE then begin
+    Trace( Format('TCompletePort.Send - Size(%s) > PACKET_SIZE', [ASize]) );
+    Exit;
+  end;
+
   pData := FIODataPool.Get;
   PData^.wsaBuffer.buf := AData;
   pData^.wsaBuffer.len := ASize;
@@ -757,7 +762,7 @@ begin
     LastError := WSAGetLastError;
     if LastError <> ERROR_IO_PENDING then begin
       {$IFDEF DEBUG}
-      Trace(Format('TCompletePort.Send - %s', [SysErrorMessage(LastError)]));
+      Trace( Format('TCompletePort.Send - %s', [SysErrorMessage(LastError)]) );
       {$ENDIF}
 
       do_FireDisconnectEvent(pData);
