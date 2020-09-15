@@ -531,7 +531,7 @@ begin
           FCompletePort.IdleCountTimeout;
 
           {$IFDEF DEBUG}
-          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d)', [FCompletePort.IdleCount]) );
+          Trace( Format('TSuperSocketClient - Disconnected for IdleCount (%d), Port: %d', [FCompletePort.IdleCount, FPort]) );
           {$ENDIF}
         end;
 
