@@ -729,8 +729,9 @@ begin
       Trace( Format('TCompletePort.Receive - %s', [SysErrorMessage(LastError)]) );
       {$ENDIF}
 
-      do_FireDisconnectEvent(pData);
       FIODataPool.Release(pData);
+
+      AConnection.Disconnect;
     end;
   end;
 end;
@@ -742,39 +743,32 @@ var
   BytesSent, Flags: DWORD;
   ErrorCode, LastError : integer;
 begin
-TagInt.SetValue(11);
   if AConnection.FSocket = INVALID_SOCKET then Exit;
 
-TagInt.SetValue(12);
   if ASize > PACKET_SIZE then begin
     Trace( Format('TCompletePort.Send - Size(%s) > PACKET_SIZE', [ASize]) );
     Exit;
   end;
 
-TagInt.SetValue(13);
   pData := FIODataPool.Get;
   PData^.wsaBuffer.buf := AData;
   pData^.wsaBuffer.len := ASize;
   pData^.Status := ioSend;
   pData^.Connection := AConnection;
 
-TagInt.SetValue(14);
   Flags := 0;
   ErrorCode := WSASend(AConnection.FSocket, @(PData^.wsaBuffer), 1, BytesSent, Flags, Pointer(pData), nil);
 
   if ErrorCode = SOCKET_ERROR then begin
-TagInt.SetValue(15);
     LastError := WSAGetLastError;
     if LastError <> ERROR_IO_PENDING then begin
       {$IFDEF DEBUG}
       Trace( Format('TCompletePort.Send - %s', [SysErrorMessage(LastError)]) );
       {$ENDIF}
 
-TagInt.SetValue(16);
-      do_FireDisconnectEvent(pData);
-TagInt.SetValue(17);
       FIODataPool.Release(pData);
-TagInt.SetValue(18);
+
+      AConnection.Disconnect;
     end;
   end;
 end;
