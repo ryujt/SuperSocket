@@ -714,7 +714,7 @@ begin
   if AConnection.FSocket = INVALID_SOCKET then Exit;
 
   pData := FIODataPool.Get;
-  PData^.wsaBuffer.buf := FMemoryRecylce.Get;
+  PData^.wsaBuffer.buf := FMemoryRecylce.Get(PACKET_SIZE);
   pData^.wsaBuffer.len := PACKET_SIZE;
   pData^.Status := ioRecv;
   pData^.Connection := AConnection;
