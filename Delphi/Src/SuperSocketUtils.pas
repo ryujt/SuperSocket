@@ -233,7 +233,6 @@ begin
     Exit;
   end;
 
-  PacketPtr := Pointer(FOffsetPtr);
   Result := FBufferSize >= SizeOf(Word);
 end;
 
