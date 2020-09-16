@@ -3,7 +3,7 @@ unit SuperSocketUtils;
 interface
 
 uses
-  DebugTools, ThreadQueue,
+  RyuLibBase, DebugTools,
   SysUtils, Classes, WinSock2;
 
 const
@@ -21,22 +21,6 @@ const
   ERROR_CONNECT = -1;
 
 type
-  {*
-    메모리를 사용후 해제하지 않고 큐에 넣어서 재사용한다.
-    같은 크기의 메모리를 재사용하기 위해 사용.
-  }
-  TMemoryRecylce = class
-  strict private
-    FSize : integer;
-    FQueue : TThreadQueue<Pointer>;
-  public
-    constructor Create;
-    destructor Destroy; override;
-
-    function Get(ASize:integer):pointer; overload;
-    procedure Release(AData:pointer);
-  end;
-
   PPacket = ^TPacket;
 
   {*
@@ -158,43 +142,6 @@ begin
   Linger.OnOff := 1;
   Linger.Linger := ALinger;
   setsockopt( ASocket, SOL_SOCKET, SO_LINGER, @Linger, SizeOf(Linger) );
-end;
-
-{ TMemoryRecylce }
-
-constructor TMemoryRecylce.Create;
-begin
-  FSize := 0;
-  FQueue := TThreadQueue<Pointer>.Create;
-end;
-
-destructor TMemoryRecylce.Destroy;
-begin
-  FreeAndNil(FQueue);
-
-  inherited;
-end;
-
-function TMemoryRecylce.Get(ASize: integer): pointer;
-const
-   // 돌려 받은 메모리를 바로 다시 할당하지 않도록 버퍼 공간을 둔다.
-   // 혹시라도 아주 짧은 순간에 돌려받은 메모리가 다른 프로세스에서 사용되거나 영향 줄까봐 노파심에
-   // 메모리를 조금 더 사용할 뿐 부정적 영향은 없을 거 같아서 추가된 코드 무시해도 된다.
-   SPARE_SPACE = 1024;
-begin
-  if FSize = 0 then begin
-    FSize := ASize;
-  end else begin
-    if ASize <> FSize then
-      raise Exception.Create('TMemoryRecylce.Get - 같은 크기의 메모리만 할당 받을 수 있습니다.');
-  end;
-
-  if (FQueue.Count < SPARE_SPACE) or (not FQueue.Pop(Result)) then GetMem(Result, ASize);
-end;
-
-procedure TMemoryRecylce.Release(AData: pointer);
-begin
-  FQueue.Push(AData);
 end;
 
 { TPacket }
