@@ -79,14 +79,8 @@ type
     property BufferSize : integer read FBufferSize;
   end;
 
-  IMemoryPoolObserver = interface
-    ['{8E41C992-E8F5-480E-94F1-D30E738506DB}']
-    procedure MemoryRefresh;
-  end;
-
   IMemoryPoolControl = interface
     ['{B763D3F8-CABD-4CBA-82A4-A7B5804232AB}']
-    procedure AddObserver(AObserver:IMemoryPoolObserver);
     function GetPacketClone(APacket:PPacket):PPacket;
   end;
 
