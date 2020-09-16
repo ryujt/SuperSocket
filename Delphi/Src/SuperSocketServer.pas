@@ -665,7 +665,7 @@ begin
       {$IFDEF DEBUG}
       if not isGetOk then begin
         LastError := WSAGetLastError;
-        Trace(Format('TSuperSocketServer.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+        Trace(Format('TCompletePort.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
       end;
       {$ENDIF}
 
@@ -677,7 +677,7 @@ begin
 
     case pData^.Status of
       ioStart: begin
-        ASimpleThread.Name := Format('TSuperSocketServer.CompletePort(%d)', [FPort]);
+        ASimpleThread.Name := Format('TCompletePort.CompletePort(%d)', [FPort]);
         if Assigned(FOnStart) then FOnStart(Transferred, pData);
       end;
 
