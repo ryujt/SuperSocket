@@ -4,6 +4,7 @@ interface
 
 uses
   RyuLibBase, DebugTools,
+  Generics.Collections,
   SysUtils, Classes, WinSock2;
 
 const
@@ -52,6 +53,8 @@ type
     /// Convert [Data] to string
     property Text : string read GetText;
   end;
+
+  TPacketList = TList<PPacket>;
 
   TPacketReader = class
   strict private
