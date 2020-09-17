@@ -31,43 +31,30 @@ implementation
 
 procedure TfmMain.btStartClick(Sender: TObject);
 var
-  packet : TPacket;
-  result_packet : PPacket;
-  i, count_write, count_read, write_bytes, write_size : integer;
+  packet, result : PPacket;
+  index : PByte;
+  i, size: Integer;
 begin
-  Packet.PacketType := 0;
+  try
+    while true do begin
+      size := Random(2048);
 
-  Randomize;
+      index := FBuffer;
+      packet := Pointer(index);
+      packet.PacketSize := size;
+      index := index + size;
+      packet := Pointer(index);
+      packet.PacketSize := size;
 
-  while true do begin
-    count_write := Random(10);
-    count_read := Random(12);
+      for i := 1 to 1024 do FPacketReader.Write(FBuffer, size * 2);
 
-    for i := 1 to count_write do begin
-      packet.PacketSize := Random(PACKET_SIZE div 2) + 1;
-      FPacketReader.Write(@packet, 3);
-
-      write_bytes := 0;
-      while write_bytes < packet.PacketSize do begin
-        write_size := Random(packet.PacketSize) + 1;
-        if (write_bytes + write_size) > packet.PacketSize then write_size := packet.PacketSize - write_bytes;
-        FPacketReader.Write(FBuffer, write_size);
-        FPacketReader.VerifyPacket;
-        write_bytes := write_bytes + write_size;
-
-        if count_read > 0 then begin
-          count_read := count_read - 1;
-          if FPacketReader.canRead then begin
-            result_packet := FPacketReader.Read;
-            if result_packet^.PacketSize > PACKET_SIZE then begin
-              Trace('result_packet^.PacketSize > PACKET_SIZE');
-            end;
-          end;
-        end;
-
-        Application.ProcessMessages;
+      while FPacketReader.canRead do begin
+        result := FPacketReader.Read;
+        Assert(result^.PacketSize = size);
       end;
     end;
+  except
+    on E : Exception do Caption := Format('size: %d, result^.PacketSize: %d', [size, result^.PacketSize, E.Message]);
   end;
 end;
 

@@ -20,10 +20,6 @@ object fmMain: TfmMain
     Height = 370
     Align = alClient
     TabOrder = 0
-    ExplicitLeft = 344
-    ExplicitTop = 180
-    ExplicitWidth = 185
-    ExplicitHeight = 89
   end
   object Panel1: TPanel
     Left = 0
@@ -33,9 +29,6 @@ object fmMain: TfmMain
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitLeft = 176
-    ExplicitTop = 48
-    ExplicitWidth = 185
     object btStart: TButton
       Left = 8
       Top = 9
