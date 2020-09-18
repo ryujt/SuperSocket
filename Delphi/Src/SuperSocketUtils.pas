@@ -15,7 +15,7 @@ const
   CONNECTION_POOL_SIZE = 4096;
 
   /// Buffer size of TPacketReader (+ safe zone)
-  PACKETREADER_BUFFER_SIZE = PACKET_SIZE * 2 + 1024;
+  PACKETREADER_BUFFER_SIZE = PACKET_SIZE + 1024;
 
   MAX_IDLE_MS = 20000;
 

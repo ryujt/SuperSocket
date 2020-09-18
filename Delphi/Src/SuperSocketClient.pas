@@ -313,22 +313,14 @@ begin
 
   FPacketReader.Write(AData, ASize);
 
-  if FPacketReader.VerifyPacket = false then begin
-    Trace( Format('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, Port: %d', [Self.FSocketClient.FPort]) );
+  while true do begin
+    PacketPtr := FPacketReader.GetPacket;
+    if PacketPtr = nil then Break;
 
-    Disconnected;
-    Exit;
-  end;
-
-  while FPacketReader.canRead do begin
-    PacketPtr := FPacketReader.Read;
-    if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
-
-    if FPacketReader.VerifyPacket = false then begin
-      Trace( Format('TCompletePort.do_Receive - FPacketReader.VerifyPacket = false, Port: %d', [Self.FSocketClient.FPort]) );
-
-      Disconnected;
-      Exit;
+    try
+      if Assigned(FSocketClient.FOnReceived) then FSocketClient.FOnReceived(FSocketClient, PacketPtr);
+    finally
+      FreeMem(PacketPtr);
     end;
   end;
 end;

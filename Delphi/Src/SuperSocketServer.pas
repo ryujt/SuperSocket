@@ -364,21 +364,15 @@ begin
 
   FPacketReader.Write(AData, ASize);
 
-  if FPacketReader.VerifyPacket = false then begin
-    Trace('TConnection.do_PacketIn - FPacketReader.VerifyPacket = false, ' + Text);
-    Disconnect;
-    Exit;
-  end;
+  while true do begin
+    PacketPtr := FPacketReader.GetPacket;
+    if PacketPtr = nil then Break;
 
-  while FPacketReader.canRead do begin
-    PacketPtr := FPacketReader.Read;
-    if PacketPtr^.PacketType = 255 then Send(@NilPacket)
-    else if Assigned(FSuperSocketServer.FOnReceived) then FSuperSocketServer.FOnReceived(Self, PacketPtr);
-
-    if FPacketReader.VerifyPacket = false then begin
-      Trace('TConnection.do_PacketIn - FPacketReader.VerifyPacket = false, ' + Text);
-      Disconnect;
-      Exit;
+    try
+      if PacketPtr^.PacketType = 255 then Send(@NilPacket)
+      else if Assigned(FSuperSocketServer.FOnReceived) then FSuperSocketServer.FOnReceived(Self, PacketPtr);
+    finally
+      FreeMem(PacketPtr);
     end;
   end;
 end;
@@ -665,7 +659,7 @@ begin
       {$IFDEF DEBUG}
       if not isGetOk then begin
         LastError := WSAGetLastError;
-        Trace(Format('TCompletePort.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+        Trace(Format('TSuperSocketServer.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
       end;
       {$ENDIF}
 
