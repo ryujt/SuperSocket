@@ -45,7 +45,6 @@ object fmMain: TfmMain
       Height = 25
       Caption = 'Start 2'
       TabOrder = 1
-      OnClick = Button1Click
     end
   end
 end

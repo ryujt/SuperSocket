@@ -14,8 +14,8 @@ const
   /// Concurrent connection limitation
   CONNECTION_POOL_SIZE = 4096;
 
-  /// Buffer size of TPacketReader
-  PACKETREADER_PAGE_SIZE = PACKET_SIZE * 32;
+  /// Buffer size of TPacketReader (+ safe zone)
+  PACKETREADER_BUFFER_SIZE = PACKET_SIZE * 2 + 1024;
 
   MAX_IDLE_MS = 20000;
 
@@ -58,28 +58,17 @@ type
 
   TPacketReader = class
   strict private
-    FBuffer : pointer;
-    FBufferSize : integer;
-    FOffset : integer;
-    FCapacity : integer;
-    FOffsetPtr : PByte;
+    FBuffer : pbyte;
+    FDataSize : integer;
+    FPacketList : TPacketList;
+    function can_add(AOffset:pbyte): boolean;
   public
     constructor Create;
     destructor Destroy; override;
 
     procedure Clear;
     procedure Write(AData:pointer; ASize:integer);
-    function Read:PPacket;
-    function canRead:boolean;
-    function canReadSize:boolean;
-
-    {*
-      Check where packet is broken.
-      If it is, VerifyPacket will clear all packet inside.
-    }
-    function VerifyPacket:boolean;
-  public
-    property BufferSize : integer read FBufferSize;
+    function GetPacket:PPacket;
   end;
 
   IMemoryPoolControl = interface
@@ -208,130 +197,83 @@ end;
 
 { TPacketReader }
 
-function TPacketReader.canRead: boolean;
-var
-  PacketPtr : PPacket;
-begin
-  if FOffsetPtr = nil then begin
-    Result := false;
-    Exit;
-  end;
-
-  PacketPtr := Pointer(FOffsetPtr);
-  Result := (FBufferSize > 0) and (FBufferSize >= PacketPtr^.PacketSize);
-end;
-
-function TPacketReader.canReadSize: boolean;
-var
-  PacketPtr : PPacket;
-begin
-  if FOffsetPtr = nil then begin
-    Result := false;
-    Exit;
-  end;
-
-  Result := FBufferSize >= SizeOf(Word);
-end;
-
 procedure TPacketReader.Clear;
+var
+  i: Integer;
 begin
-  FBufferSize := 0;
-  FOffset := 0;
-  FCapacity := 0;
-
-  if FBuffer <> nil then FreeMem(FBuffer);
-  FBuffer := nil;
-
-  FOffsetPtr := nil;
+  for i := 0 to FPacketList.Count - 1 do FreeMem(FPacketList[0]);
+  FPacketList.Clear;
+  FDataSize := 0;
 end;
 
 constructor TPacketReader.Create;
 begin
   inherited;
 
-  FBuffer := nil;
-  FBufferSize := 0;
-  FOffset := 0;
-  FCapacity := 0;
-  FOffsetPtr := nil;
+  FDataSize := 0;
+
+  GetMem(FBuffer, PACKETREADER_BUFFER_SIZE);
+  FPacketList := TPacketList.Create;
 end;
 
 destructor TPacketReader.Destroy;
 begin
   Clear;
 
+  FreeMem(FBuffer);
+
   inherited;
 end;
 
-function TPacketReader.Read: PPacket;
+function TPacketReader.GetPacket: PPacket;
 begin
   Result := nil;
 
-  if not canRead then Exit;
+  if FPacketList.Count = 0 then Exit;
 
-  Result := Pointer(FOffsetPtr);
-
-  FBufferSize := FBufferSize - Result^.PacketSize;
-  FOffset := FOffset + Result^.PacketSize;
-  FOffsetPtr := FOffsetPtr + Result^.PacketSize;
+  Result := FPacketList[0];
+  FPacketList.Delete(0);
 end;
 
-function TPacketReader.VerifyPacket:boolean;
+function TPacketReader.can_add(AOffset:pbyte): boolean;
 var
-  PacketPtr : PPacket;
+  PacketPtr : PPacket absolute AOffset;
 begin
-  Result := true;
-
-  if not canReadSize then Exit;
-
-  PacketPtr := Pointer(FOffsetPtr);
-  Result := PacketPtr^.PacketSize <= PACKET_SIZE;
-
-  {$IFDEF DEBUG}
-  if Result = false then begin
-    Trace( Format('TPacketReader.VerifyPacket - Size: %d', [PacketPtr^.PacketSize]) );
+  if FDataSize < SizeOf(PacketPtr^.PacketSize) then begin
+    Result := false;
+    Exit;
   end;
-  {$ENDIF}
+
+  Result := FDataSize >= PacketPtr^.PacketSize;
 end;
 
 procedure TPacketReader.Write(AData: pointer; ASize: integer);
 var
-  iNewSize : integer;
-  pNewData : pointer;
-  pTempIndex : pbyte;
-  pOldData : pointer;
+  offset : pbyte;
+  PacketPtr : PPacket;
 begin
-  if ASize <= 0 then Exit;
+  offset := FBuffer + FDataSize;
 
-  iNewSize := FBufferSize + ASize;
+  Move(AData^, offset^, ASize);
+  FDataSize := FDataSize + ASize;
 
-  if (iNewSize + FOffset) > FCapacity then begin
-    FCapacity := ((iNewSize div PACKETREADER_PAGE_SIZE) + 1) * PACKETREADER_PAGE_SIZE;
+  while can_add(offset) do begin
+    PacketPtr := Pointer(offset);
+    FPacketList.Add( PacketPtr^.Clone );
 
-    GetMem(pNewData, FCapacity);
-    pTempIndex := pNewData;
+    {$IFDEF DEBUG}
+    if PacketPtr^.PacketSize > PACKET_SIZE then Trace('TPacketReader.Write - PacketPtr^.PacketSize > PACKET_SIZE');
+    {$ENDIF}
 
-    if FBufferSize > 0 then begin
-      Move(FOffsetPtr^, pTempIndex^, FBufferSize);
-      pTempIndex := pTempIndex + FBufferSize;
-    end;
+    offset := offset + PacketPtr^.PacketSize;
+    FDataSize := FDataSize - PacketPtr^.PacketSize;
 
-    Move(AData^, pTempIndex^, ASize);
-
-    FOffset := 0;
-
-    pOldData := FBuffer;
-    FBuffer := pNewData;
-
-    if pOldData <> nil then FreeMem(pOldData);
-
-    FOffsetPtr := FBuffer;
-  end else begin
-    pTempIndex := FOffsetPtr + FBufferSize;
-    Move(AData^, pTempIndex^, ASize);
+    {$IFDEF DEBUG}
+    if FDataSize < 0 then Trace('TPacketReader.Write - FDataSize < 0');
+    {$ENDIF}
   end;
 
-  FBufferSize := iNewSize;
+  if FDataSize > 0 then Move(offset^, FBuffer^, FDataSize);  
 end;
 
 initialization

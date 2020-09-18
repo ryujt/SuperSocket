@@ -15,7 +15,6 @@ type
     Button1: TButton;
     procedure btStartClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
   private
     FBuffer : pointer;
     FPacketReader : TPacketReader;
@@ -37,7 +36,7 @@ var
 begin
   try
     while true do begin
-      size := Random(2048);
+      size := Random(2048) + 3;
 
       index := FBuffer;
       packet := Pointer(index);
@@ -48,56 +47,17 @@ begin
 
       for i := 1 to 1024 do FPacketReader.Write(FBuffer, size * 2);
 
-      while FPacketReader.canRead do begin
-        result := FPacketReader.Read;
+      while true do begin
+        result := FPacketReader.GetPacket;
+        if result = nil then Break;
+        
         Assert(result^.PacketSize = size);
+
+        FreeMem(result);
       end;
     end;
   except
     on E : Exception do Caption := Format('size: %d, result^.PacketSize: %d', [size, result^.PacketSize, E.Message]);
-  end;
-end;
-
-procedure TfmMain.Button1Click(Sender: TObject);
-var
-  packet : TPacket;
-  result_packet : PPacket;
-  i, count_write, write_bytes, write_size : integer;
-begin
-  Packet.PacketType := 0;
-
-  Randomize;
-
-  while true do begin
-    count_write := Random(10);
-
-    for i := 1 to count_write do begin
-      packet.PacketSize := Random(PACKET_SIZE div 2) + 1;
-      if packet.PacketSize > PACKET_SIZE then begin
-        Trace('packet.PacketSize > PACKET_SIZE');
-      end;
-
-      FPacketReader.Write(@packet, 3);
-
-      write_bytes := 0;
-      while write_bytes < packet.PacketSize do begin
-        write_size := Random(packet.PacketSize) + 1;
-        if (write_bytes + write_size) > packet.PacketSize then write_size := packet.PacketSize - write_bytes;
-        FPacketReader.Write(FBuffer, write_size);
-        FPacketReader.VerifyPacket;
-        write_bytes := write_bytes + write_size;
-      end;
-    end;
-
-    while FPacketReader.BufferSize > PACKET_SIZE do begin
-      if FPacketReader.canRead then begin
-        result_packet := FPacketReader.Read;
-        if result_packet^.PacketSize > PACKET_SIZE then begin
-          Trace('result_packet^.PacketSize > PACKET_SIZE');
-        end;
-      end;
-    end;
-
   end;
 end;
 
