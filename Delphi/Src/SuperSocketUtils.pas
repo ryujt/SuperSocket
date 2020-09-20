@@ -15,7 +15,7 @@ const
   CONNECTION_POOL_SIZE = 4096;
 
   /// Buffer size of TPacketReader (+ safe zone)
-  PACKETREADER_BUFFER_SIZE = PACKET_SIZE + 1024;
+  PACKETREADER_BUFFER_SIZE = PACKET_SIZE * 2;
 
   MAX_IDLE_MS = 20000;
 
@@ -67,8 +67,12 @@ type
     destructor Destroy; override;
 
     procedure Clear;
-    procedure Write(AData:pointer; ASize:integer);
+    function Write(AData:pointer; ASize:integer):boolean;
     function GetPacket:PPacket;
+  private
+    function GetCount: integer;
+  public
+    property Count : integer read GetCount;
   end;
 
   IMemoryPoolControl = interface
@@ -225,6 +229,11 @@ begin
   inherited;
 end;
 
+function TPacketReader.GetCount: integer;
+begin
+  Result := FPacketList.Count;
+end;
+
 function TPacketReader.GetPacket: PPacket;
 begin
   Result := nil;
@@ -247,33 +256,54 @@ begin
   Result := FDataSize >= PacketPtr^.PacketSize;
 end;
 
-procedure TPacketReader.Write(AData: pointer; ASize: integer);
+function TPacketReader.Write(AData: pointer; ASize: integer):boolean;
 var
   offset : pbyte;
   PacketPtr : PPacket;
 begin
+  Result := true;
+
   offset := FBuffer + FDataSize;
 
-  Move(AData^, offset^, ASize);
   FDataSize := FDataSize + ASize;
+  if FDataSize > PACKETREADER_BUFFER_SIZE then begin
+    {$IFDEF DEBUG}
+    Trace('TPacketReader.Write - FDataSize > PACKETREADER_BUFFER_SIZE');
+    {$ENDIF}
+
+    Result := false;
+    Exit;
+  end;
+
+  Move(AData^, offset^, ASize);
 
   while can_add(offset) do begin
     PacketPtr := Pointer(offset);
     FPacketList.Add( PacketPtr^.Clone );
 
-    {$IFDEF DEBUG}
-    if PacketPtr^.PacketSize > PACKET_SIZE then Trace('TPacketReader.Write - PacketPtr^.PacketSize > PACKET_SIZE');
-    {$ENDIF}
+    if PacketPtr^.PacketSize > PACKET_SIZE then begin
+      {$IFDEF DEBUG}
+      Trace('TPacketReader.Write - PacketPtr^.PacketSize > PACKET_SIZE');
+      {$ENDIF}
+
+      Result := false;
+      Exit;
+    end;
 
     offset := offset + PacketPtr^.PacketSize;
     FDataSize := FDataSize - PacketPtr^.PacketSize;
-
-    {$IFDEF DEBUG}
-    if FDataSize < 0 then Trace('TPacketReader.Write - FDataSize < 0');
-    {$ENDIF}
   end;
 
-  if FDataSize > 0 then Move(offset^, FBuffer^, FDataSize);  
+  if FDataSize < 0 then begin
+    {$IFDEF DEBUG}
+    Trace('TPacketReader.Write - FDataSize < 0');
+    {$ENDIF}
+
+    Result := false;
+    Exit;
+  end;
+
+  if FDataSize > 0 then Move(offset^, FBuffer^, FDataSize);
 end;
 
 initialization
