@@ -311,7 +311,10 @@ var
 begin
   IdleCount := 0;
 
-  FPacketReader.Write(AData, ASize);
+  if FPacketReader.Write(AData, ASize) = false then begin
+    do_DisconnectWithEvent;
+    Exit;
+  end;
 
   while true do begin
     PacketPtr := FPacketReader.GetPacket;
@@ -322,6 +325,10 @@ begin
     finally
       FreeMem(PacketPtr);
     end;
+  end;
+
+  if FPacketReader.Count > 10 then begin
+    Trace('TCompletePort.do_Receive - FPacketReader.Count > 10');
   end;
 end;
 
