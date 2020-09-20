@@ -326,10 +326,6 @@ begin
       FreeMem(PacketPtr);
     end;
   end;
-
-  if FPacketReader.Count > 10 then begin
-    Trace('TCompletePort.do_Receive - FPacketReader.Count > 10');
-  end;
 end;
 
 procedure TCompletePort.do_Terminate;
