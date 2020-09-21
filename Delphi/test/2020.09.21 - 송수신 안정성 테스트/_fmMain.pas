@@ -3,7 +3,7 @@ unit _fmMain;
 interface
 
 uses
-  DebugTools, MemoryPool,
+  DebugTools, MemoryPool, LazyRelease,
   SuperSocketUtils, SuperSocketServer, SuperSocketClient,
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
@@ -17,6 +17,7 @@ type
     procedure TimerTimer(Sender: TObject);
   private
     FMemoryPool : TMemoryPool;
+    FLazyRelease : TLazyRelease;
     function GetPacketClone(APacket:PPacket):PPacket;
     function make_packet:PPacket;
     procedure check_packet(const ATag:string; APacket:PPacket);
@@ -73,6 +74,7 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   FMemoryPool := TMemoryPool32.Create(1024 * 1024 * 64);
+  FLazyRelease := TLazyRelease.Create('', 1024 * 32);
 
   FServer := TSuperSocketServer.Create(true);
   FServer.OnConnected := on_server_connected;
@@ -93,7 +95,10 @@ end;
 
 function TForm1.GetPacketClone(APacket: PPacket): PPacket;
 begin
-  Result := FMemoryPool.GetMem(APacket^.PacketSize);
+//  Result := FMemoryPool.GetMem(APacket^.PacketSize);
+  GetMem(Result, APacket^.PacketSize);
+  FLazyRelease.Release(Result);
+
   Move(APacket^, Result^, APacket^.PacketSize);
 end;
 
@@ -105,23 +110,25 @@ begin
   size := Random(1024 * 32 - 3) + 3;
   check_sum := size mod 256;
 
-  Result := FMemoryPool.GetMem(size);
+//  Result := FMemoryPool.GetMem(size);
+  GetMem(Result, size);
+  FLazyRelease.Release(Result);
 
   Result^.PacketSize := size;
   Result^.PacketType := check_sum;
   FillChar(Result^.DataStart, size - 3, check_sum);
+
+  check_packet('make_packet', Result);
 end;
 
 procedure TForm1.on_FClient1_received(ASender: TObject; APacket: PPacket);
 begin
   check_packet('on_FClient1_received', APacket);
-
 end;
 
 procedure TForm1.on_FClient2_received(ASender: TObject; APacket: PPacket);
 begin
   check_packet('on_FClient2_received', APacket);
-
 end;
 
 procedure TForm1.on_server_connected(AConnection: TConnection);
@@ -145,7 +152,7 @@ var
 begin
   Timer.OnTimer := nil;
   try
-    for i := 1 to 1024 do FClient1.Send(make_packet);
+    for i := 1 to 32 do FClient1.Send(make_packet);
   finally
     Timer.OnTimer := TimerTimer;
   end;
