@@ -296,7 +296,7 @@ begin
   if FSocket = INVALID_SOCKET then Exit;
 
   {$IFDEF DEBUG}
-  Trace('TCompletePort - do_DisconnectWithEvent');
+  Trace( Format('TCompletePort - do_DisconnectWithEvent (Port: %d)', [FSocketClient.FPort]) );
   {$ENDIF}
 
   closesocket(FSocket);
@@ -363,45 +363,49 @@ var
   isGetOk, isCondition : boolean;
 begin
   while not ASimpleThread.Terminated do begin
-    isGetOk := GetQueuedCompletionStatus(FCompletionPort, Transferred, Key, POverlapped(pData), INFINITE);
+    try
+      isGetOk := GetQueuedCompletionStatus(FCompletionPort, Transferred, Key, POverlapped(pData), INFINITE);
 
-    isCondition :=
-      (pData <> nil) and ((Transferred = 0) or (not isGetOk));
-    if isCondition then begin
-      {$IFDEF DEBUG}
-      if not isGetOk then begin
-        LastError := WSAGetLastError;
-        Trace(Format('TSuperSocketClient.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+      isCondition :=
+        (pData <> nil) and ((Transferred = 0) or (not isGetOk));
+      if isCondition then begin
+        {$IFDEF DEBUG}
+        if not isGetOk then begin
+          LastError := WSAGetLastError;
+          Trace(Format('TSuperSocketClient.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+        end;
+        {$ENDIF}
+
+        do_DisconnectWithEvent;
+        if pData <> nil then FIODataPool.Release(pData);
+
+        Continue;
       end;
-      {$ENDIF}
 
+      if pData = nil then Continue;
+
+      case pData^.Status of
+        ioConnect: do_Connect(pData);
+        ioDisconnect: do_Disconnect;
+
+        ioSend:FreeMem(pData^.wsaBuffer.buf);
+
+        ioRecv: begin
+          start_Receive;
+          do_Receive(pData^.wsaBuffer.buf, Transferred);
+          FMemoryRecylce.Release(pData.wsaBuffer.buf);
+        end;
+
+        ioTerminate: do_Terminate;
+
+        ioDisconnected,
+        ioIdleCountTimeout: do_DisconnectWithEvent;
+      end;
+
+      FIODataPool.Release(pData);
+    except
       do_DisconnectWithEvent;
-      if pData <> nil then FIODataPool.Release(pData);
-
-      Continue;
     end;
-
-    if pData = nil then Continue;
-
-    case pData^.Status of
-      ioConnect: do_Connect(pData);
-      ioDisconnect: do_Disconnect;
-
-      ioSend:FreeMem(pData^.wsaBuffer.buf);
-
-      ioRecv: begin
-        start_Receive;
-        do_Receive(pData^.wsaBuffer.buf, Transferred);
-        FMemoryRecylce.Release(pData.wsaBuffer.buf);
-      end;
-
-      ioTerminate: do_Terminate;
-
-      ioDisconnected,
-      ioIdleCountTimeout: do_DisconnectWithEvent;
-    end;
-
-    FIODataPool.Release(pData);
   end;
 
   do_Disconnect;
