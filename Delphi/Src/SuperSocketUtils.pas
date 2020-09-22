@@ -12,7 +12,7 @@ const
   PACKET_SIZE = 1024 * 32;
 
   /// Concurrent connection limitation
-  CONNECTION_POOL_SIZE = 4096;
+  CONNECTION_POOL_SIZE = 1024 * 2;
 
   /// Buffer size of TPacketReader (+ safe zone)
   PACKETREADER_BUFFER_SIZE = PACKET_SIZE * 2;
@@ -23,6 +23,11 @@ const
 
 type
   PPacket = ^TPacket;
+
+  TPacketHeader = packed record
+    PacketSize : word;
+    PacketType : byte;
+  end;
 
   {*
     [Packet] = [PacketSize:word] [PacketType: byte] [Data]
@@ -61,7 +66,7 @@ type
     FBuffer : pbyte;
     FDataSize : integer;
     FPacketList : TPacketList;
-    function can_add(AOffset:pbyte): boolean;
+    function can_add: boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -215,7 +220,6 @@ begin
   inherited;
 
   FDataSize := 0;
-
   GetMem(FBuffer, PACKETREADER_BUFFER_SIZE);
   FPacketList := TPacketList.Create;
 end;
@@ -244,15 +248,16 @@ begin
   FPacketList.Delete(0);
 end;
 
-function TPacketReader.can_add(AOffset:pbyte): boolean;
+function TPacketReader.can_add: boolean;
 var
-  PacketPtr : PPacket absolute AOffset;
+  PacketPtr : PPacket;
 begin
-  if FDataSize < SizeOf(PacketPtr^.PacketSize) then begin
+  if FDataSize < SizeOf(TPacketHeader) then begin
     Result := false;
     Exit;
   end;
 
+  PacketPtr := Pointer(FBuffer);
   Result := FDataSize >= PacketPtr^.PacketSize;
 end;
 
@@ -263,7 +268,10 @@ var
 begin
   Result := true;
 
-  offset := FBuffer + FDataSize;
+  if ASize <= 0 then Exit;
+
+  offset := FBuffer;
+  offset := offset + FDataSize;
 
   FDataSize := FDataSize + ASize;
   if FDataSize > PACKETREADER_BUFFER_SIZE then begin
@@ -277,9 +285,8 @@ begin
 
   Move(AData^, offset^, ASize);
 
-  while can_add(offset) do begin
-    PacketPtr := Pointer(offset);
-    FPacketList.Add( PacketPtr^.Clone );
+  while can_add do begin
+    PacketPtr := Pointer(FBuffer);
 
     if PacketPtr^.PacketSize > PACKET_SIZE then begin
       {$IFDEF DEBUG}
@@ -290,20 +297,14 @@ begin
       Exit;
     end;
 
-    offset := offset + PacketPtr^.PacketSize;
+    FPacketList.Add(PacketPtr.Clone);
     FDataSize := FDataSize - PacketPtr^.PacketSize;
+
+    offset := FBuffer;
+    offset := offset + PacketPtr^.PacketSize;
+
+    Move(offset^, FBuffer^, FDataSize);
   end;
-
-  if FDataSize < 0 then begin
-    {$IFDEF DEBUG}
-    Trace('TPacketReader.Write - FDataSize < 0');
-    {$ENDIF}
-
-    Result := false;
-    Exit;
-  end;
-
-  if FDataSize > 0 then Move(offset^, FBuffer^, FDataSize);
 end;
 
 initialization

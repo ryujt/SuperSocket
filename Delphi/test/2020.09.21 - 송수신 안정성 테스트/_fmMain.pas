@@ -3,7 +3,7 @@ unit _fmMain;
 interface
 
 uses
-  DebugTools, MemoryPool, LazyRelease,
+  DebugTools, MemoryPool, LazyRelease, Disk,
   SuperSocketUtils, SuperSocketServer, SuperSocketClient,
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
@@ -60,12 +60,14 @@ begin
 
   if check_sum <> APacket^.PacketType then begin
     Trace(ATag + ' - check_sum <> APacket^.PacketType');
+    raise Exception.Create(ATag + ' - check_sum <> APacket^.PacketType');
   end;
 
   check := @APacket^.DataStart;
   for i := 1 to APacket^.DataSize do begin
     if check_sum <> check^ then begin
       Trace(ATag + ' - check_sum <> check^');
+      raise Exception.Create(ATag + ' - check_sum <> check^');
     end;
     Inc(check);
   end;
@@ -95,9 +97,9 @@ end;
 
 function TForm1.GetPacketClone(APacket: PPacket): PPacket;
 begin
-//  Result := FMemoryPool.GetMem(APacket^.PacketSize);
-  GetMem(Result, APacket^.PacketSize);
-  FLazyRelease.Release(Result);
+  Result := FMemoryPool.GetMem(APacket^.PacketSize);
+//  GetMem(Result, APacket^.PacketSize);
+//  FLazyRelease.Release(Result);
 
   Move(APacket^, Result^, APacket^.PacketSize);
 end;
@@ -110,9 +112,9 @@ begin
   size := Random(1024 * 32 - 3) + 3;
   check_sum := size mod 256;
 
-//  Result := FMemoryPool.GetMem(size);
-  GetMem(Result, size);
-  FLazyRelease.Release(Result);
+  Result := FMemoryPool.GetMem(size);
+//  GetMem(Result, size);
+//  FLazyRelease.Release(Result);
 
   Result^.PacketSize := size;
   Result^.PacketType := check_sum;
