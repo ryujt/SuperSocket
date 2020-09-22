@@ -267,43 +267,46 @@ var
   PacketPtr : PPacket;
 begin
   Result := true;
-
   if ASize <= 0 then Exit;
 
-  offset := FBuffer;
-  offset := offset + FDataSize;
+  try
+    offset := FBuffer;
+    offset := offset + FDataSize;
 
-  FDataSize := FDataSize + ASize;
-  if FDataSize > PACKETREADER_BUFFER_SIZE then begin
-    {$IFDEF DEBUG}
-    Trace('TPacketReader.Write - FDataSize > PACKETREADER_BUFFER_SIZE');
-    {$ENDIF}
-
-    Result := false;
-    Exit;
-  end;
-
-  Move(AData^, offset^, ASize);
-
-  while can_add do begin
-    PacketPtr := Pointer(FBuffer);
-
-    if PacketPtr^.PacketSize > PACKET_SIZE then begin
+    FDataSize := FDataSize + ASize;
+    if FDataSize > PACKETREADER_BUFFER_SIZE then begin
       {$IFDEF DEBUG}
-      Trace('TPacketReader.Write - PacketPtr^.PacketSize > PACKET_SIZE');
+      Trace('TPacketReader.Write - FDataSize > PACKETREADER_BUFFER_SIZE');
       {$ENDIF}
 
       Result := false;
       Exit;
     end;
 
-    FPacketList.Add(PacketPtr.Clone);
-    FDataSize := FDataSize - PacketPtr^.PacketSize;
+    Move(AData^, offset^, ASize);
 
-    offset := FBuffer;
-    offset := offset + PacketPtr^.PacketSize;
+    while can_add do begin
+      PacketPtr := Pointer(FBuffer);
 
-    Move(offset^, FBuffer^, FDataSize);
+      if PacketPtr^.PacketSize > PACKET_SIZE then begin
+        {$IFDEF DEBUG}
+        Trace('TPacketReader.Write - PacketPtr^.PacketSize > PACKET_SIZE');
+        {$ENDIF}
+
+        Result := false;
+        Exit;
+      end;
+
+      FPacketList.Add(PacketPtr.Clone);
+      FDataSize := FDataSize - PacketPtr^.PacketSize;
+
+      offset := FBuffer;
+      offset := offset + PacketPtr^.PacketSize;
+
+      Move(offset^, FBuffer^, FDataSize);
+    end;
+  except
+    Result := false;
   end;
 end;
 

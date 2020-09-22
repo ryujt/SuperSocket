@@ -526,24 +526,28 @@ begin
   while not ASimpleThread.Terminated do begin
     if FSocket = INVALID_SOCKET then Break;
 
-    AddrLen := SizeOf(Addr);
-    NewSocket := WSAAccept(FSocket, PSockAddr(@Addr), @AddrLen, nil, 0);
+    try
+      AddrLen := SizeOf(Addr);
+      NewSocket := WSAAccept(FSocket, PSockAddr(@Addr), @AddrLen, nil, 0);
 
-    if ASimpleThread.Terminated then Break;
+      if ASimpleThread.Terminated then Break;
 
-    if NewSocket = INVALID_SOCKET then begin
-      {$IFDEF DEBUG}
-      LastError := WSAGetLastError;
-      Trace(Format('TListener.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
-      {$ENDIF}
+      if NewSocket = INVALID_SOCKET then begin
+        {$IFDEF DEBUG}
+        LastError := WSAGetLastError;
+        Trace(Format('TListener.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+        {$ENDIF}
 
-      Continue;
+        Continue;
+      end;
+
+      SetSocketDelayOption(NewSocket, FUseNagel);
+      SetSocketLingerOption(NewSocket, 0);
+
+      if Assigned(FOnAccepted) then FOnAccepted(NewSocket, String(AnsiStrings.StrPas(inet_ntoa(sockaddr_in(Addr).sin_addr))));
+    except
+      on E : Exception do Trace('TListener.on_FSimpleThread_Execute - ' + E.Message);
     end;
-
-    SetSocketDelayOption(NewSocket, FUseNagel);
-    SetSocketLingerOption(NewSocket, 0);
-
-    if Assigned(FOnAccepted) then FOnAccepted(NewSocket, String(AnsiStrings.StrPas(inet_ntoa(sockaddr_in(Addr).sin_addr))));
   end;
 end;
 
@@ -653,52 +657,56 @@ var
   LastError : integer;
 begin
   while not ASimpleThread.Terminated do begin
-    isGetOk := GetQueuedCompletionStatus(FCompletionPort, Transferred, Key, POverlapped(pData), INFINITE);
+    try
+      isGetOk := GetQueuedCompletionStatus(FCompletionPort, Transferred, Key, POverlapped(pData), INFINITE);
 
-    if pData = nil then Continue;
+      if pData = nil then Continue;
 
-    isCondition := ((Transferred = 0) or (not isGetOk));
-    if isCondition then begin
-      {$IFDEF DEBUG}
-      if not isGetOk then begin
-        LastError := WSAGetLastError;
-        Trace(Format('TSuperSocketServer.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+      isCondition := ((Transferred = 0) or (not isGetOk));
+      if isCondition then begin
+        {$IFDEF DEBUG}
+        if not isGetOk then begin
+          LastError := WSAGetLastError;
+          Trace(Format('TSuperSocketServer.on_FSimpleThread_Execute - %s', [SysErrorMessage(LastError)]));
+        end;
+        {$ENDIF}
+
+        do_FireDisconnectEvent(pData);
+        FIODataPool.Release(pData);
+
+        Continue;
       end;
-      {$ENDIF}
 
-      do_FireDisconnectEvent(pData);
+      case pData^.Status of
+        ioStart: begin
+          ASimpleThread.Name := Format('TCompletePort.CompletePort(%d)', [FPort]);
+          if Assigned(FOnStart) then FOnStart(Transferred, pData);
+        end;
+
+        ioStop: if Assigned(FOnStop) then FOnStop(Transferred, pData);
+
+        ioAccepted: begin
+          if Assigned(FOnAccepted) then FOnAccepted(Transferred, pData);
+          if pData^.Connection <> nil then Receive(pData^.Connection);
+        end;
+
+        ioSend: ;
+
+        ioRecv: begin
+          Receive(pData^.Connection);
+          if Assigned(FOnReceived) then FOnReceived(Transferred, pData);
+          FMemoryRecylce.Release(pData.wsaBuffer.buf);
+        end;
+
+        ioDisconnect: do_FireDisconnectEvent(pData);
+
+        ioUserEvent: if Assigned(FOnUserEvent) then FOnUserEvent(Transferred, pData);
+      end;
+
       FIODataPool.Release(pData);
-
-      Continue;
+    except
+      on E : Exception do Trace('TCompletePort.on_FSimpleThread_Execute - ' + E.Message);
     end;
-
-    case pData^.Status of
-      ioStart: begin
-        ASimpleThread.Name := Format('TCompletePort.CompletePort(%d)', [FPort]);
-        if Assigned(FOnStart) then FOnStart(Transferred, pData);
-      end;
-
-      ioStop: if Assigned(FOnStop) then FOnStop(Transferred, pData);
-
-      ioAccepted: begin
-        if Assigned(FOnAccepted) then FOnAccepted(Transferred, pData);
-        if pData^.Connection <> nil then Receive(pData^.Connection);
-      end;
-
-      ioSend: ;
-
-      ioRecv: begin
-        Receive(pData^.Connection);
-        if Assigned(FOnReceived) then FOnReceived(Transferred, pData);
-        FMemoryRecylce.Release(pData.wsaBuffer.buf);
-      end;
-
-      ioDisconnect: do_FireDisconnectEvent(pData);
-
-      ioUserEvent: if Assigned(FOnUserEvent) then FOnUserEvent(Transferred, pData);
-    end;
-
-    FIODataPool.Release(pData);
   end;
 end;
 
