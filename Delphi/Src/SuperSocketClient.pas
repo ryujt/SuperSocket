@@ -391,9 +391,9 @@ begin
         ioSend:FreeMem(pData^.wsaBuffer.buf);
 
         ioRecv: begin
-          start_Receive;
           do_Receive(pData^.wsaBuffer.buf, Transferred);
           FMemoryRecylce.Release(pData.wsaBuffer.buf);
+          start_Receive;
         end;
 
         ioTerminate: do_Terminate;

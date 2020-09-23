@@ -3,7 +3,8 @@ unit _fmMain;
 interface
 
 uses
-  DebugTools, MemoryPool, LazyRelease, Disk,
+  Globals,
+  DebugTools, Disk,
   SuperSocketUtils, SuperSocketServer, SuperSocketClient,
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
@@ -16,8 +17,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure TimerTimer(Sender: TObject);
   private
-    FMemoryPool : TMemoryPool;
-    FLazyRelease : TLazyRelease;
+    FMemoryPool : TMemoryPoolUnit;
     function GetPacketClone(APacket:PPacket):PPacket;
     function make_packet:PPacket;
     procedure check_packet(const ATag:string; APacket:PPacket);
@@ -75,8 +75,7 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  FMemoryPool := TMemoryPool64.Create(1024 * 1024 * 256);
-  FLazyRelease := TLazyRelease.Create('', 1024 * 32);
+  FMemoryPool := TMemoryPoolUnit.Create;
 
   FServer := TSuperSocketServer.Create(true);
   FServer.OnConnected := on_server_connected;
@@ -97,11 +96,7 @@ end;
 
 function TForm1.GetPacketClone(APacket: PPacket): PPacket;
 begin
-  Result := FMemoryPool.GetMem(APacket^.PacketSize);
-//  GetMem(Result, APacket^.PacketSize);
-//  FLazyRelease.Release(Result);
-
-  Move(APacket^, Result^, APacket^.PacketSize);
+  Result := FMemoryPool.GetPacketClone(APacket);
 end;
 
 function TForm1.make_packet: PPacket;

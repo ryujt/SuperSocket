@@ -693,9 +693,9 @@ begin
         ioSend: ;
 
         ioRecv: begin
-          Receive(pData^.Connection);
           if Assigned(FOnReceived) then FOnReceived(Transferred, pData);
           FMemoryRecylce.Release(pData.wsaBuffer.buf);
+          Receive(pData^.Connection);
         end;
 
         ioDisconnect: do_FireDisconnectEvent(pData);
