@@ -276,7 +276,7 @@ begin
     FDataSize := FDataSize + ASize;
     if FDataSize > PACKETREADER_BUFFER_SIZE then begin
       {$IFDEF DEBUG}
-      Trace('TPacketReader.Write - FDataSize > PACKETREADER_BUFFER_SIZE');
+      Trace( Format('TPacketReader.Write - FDataSize(%d) > PACKETREADER_BUFFER_SIZE', [FDataSize]) );
       {$ENDIF}
 
       Result := false;
@@ -290,7 +290,7 @@ begin
 
       if PacketPtr^.PacketSize > PACKET_SIZE then begin
         {$IFDEF DEBUG}
-        Trace('TPacketReader.Write - PacketPtr^.PacketSize > PACKET_SIZE');
+        Trace( Format('TPacketReader.Write - PacketPtr^.PacketSize(%d) > PACKET_SIZE', [PacketPtr^.PacketSize]) );
         {$ENDIF}
 
         Result := false;
