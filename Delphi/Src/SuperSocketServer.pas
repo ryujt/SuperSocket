@@ -605,7 +605,7 @@ begin
   FCompletionPort := CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
 
   FIODataPool := TIODataPool.Create;
-  FMemoryRecylce := TMemoryRecylce.Create;
+  FMemoryRecylce := TMemoryRecylce.Create(CONNECTION_POOL_SIZE);
   FSimpleThread := TSimpleThread.Create('TSuperSocketServer.CompletePort', on_FSimpleThread_Execute);
 end;
 
