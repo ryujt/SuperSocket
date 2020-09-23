@@ -75,7 +75,7 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  FMemoryPool := TMemoryPool32.Create(1024 * 1024 * 64);
+  FMemoryPool := TMemoryPool64.Create(1024 * 1024 * 256);
   FLazyRelease := TLazyRelease.Create('', 1024 * 32);
 
   FServer := TSuperSocketServer.Create(true);
