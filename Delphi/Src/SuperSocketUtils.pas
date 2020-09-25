@@ -85,6 +85,8 @@ type
     function GetPacketClone(APacket:PPacket):PPacket;
   end;
 
+  TPacketEvent = procedure (ASender:TObject; APacket:PPacket) of object;
+
 var
   WSAData : TWSAData;
   NilPacket : TPacket;
