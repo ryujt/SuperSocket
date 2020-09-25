@@ -40,7 +40,6 @@ type
     FPacketReader : TPacketReader;
     FCompletionPort : THandle;
     FIODataPool : TIODataPool;
-    FMemoryRecylce : TMemoryRecylce;
 
     procedure start_Receive;
 
@@ -154,10 +153,12 @@ function TIODataPool.Get: PIOData;
 begin
   if not FQueue.Pop( Pointer(Result) ) then New(Result);
   FillChar(Result^.Overlapped, SizeOf(Overlapped), 0);
+  Result^.wsaBuffer.buf := nil;
 end;
 
 procedure TIODataPool.Release(AIOData: PIOData);
 begin
+  if AIOData^.wsaBuffer.buf <> nil then FreeMem(AIOData^.wsaBuffer.buf);
   FQueue.Push(AIOData);
 end;
 
@@ -195,7 +196,6 @@ begin
   FCompletionPort := CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
   FPacketReader := TPacketReader.Create;
   FIODataPool := TIODataPool.Create;
-  FMemoryRecylce := TMemoryRecylce.Create(32);
   FSimpleThread := TSimpleThread.Create('TSuperSocketClient.CompletePort', on_FSimpleThread_Execute);
 end;
 
@@ -388,11 +388,10 @@ begin
         ioConnect: do_Connect(pData);
         ioDisconnect: do_Disconnect;
 
-        ioSend:FreeMem(pData^.wsaBuffer.buf);
+        ioSend: ;
 
         ioRecv: begin
           do_Receive(pData^.wsaBuffer.buf, Transferred);
-          FMemoryRecylce.Release(pData.wsaBuffer.buf);
           start_Receive;
         end;
 
@@ -412,7 +411,6 @@ begin
 
   FreeAndNil(FPacketReader);
   FreeAndNil(FIODataPool);
-  FreeAndNil(FMemoryRecylce);
   CloseHandle(FCompletionPort);
 end;
 
@@ -425,7 +423,7 @@ begin
   if FSocket = INVALID_SOCKET then Exit;
 
   pData := FIODataPool.Get;
-  PData^.wsaBuffer.buf := FMemoryRecylce.Get(PACKET_SIZE);
+  GetMem(PData^.wsaBuffer.buf, PACKET_SIZE);
   pData^.wsaBuffer.len := PACKET_SIZE;
   pData^.Status := ioRecv;
 
