@@ -3,8 +3,7 @@ unit _fmMain;
 interface
 
 uses
-  Globals,
-  DebugTools, Disk,
+  DebugTools, Disk, MemoryPool,
   SuperSocketUtils, SuperSocketServer, SuperSocketClient,
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
@@ -17,7 +16,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure TimerTimer(Sender: TObject);
   private
-    FMemoryPool : TMemoryPoolUnit;
+    FMemoryPool : TMemoryPool;
     function GetPacketClone(APacket:PPacket):PPacket;
     function make_packet:PPacket;
     procedure check_packet(const ATag:string; APacket:PPacket);
@@ -75,7 +74,7 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  FMemoryPool := TMemoryPoolUnit.Create;
+  FMemoryPool := TMemoryPool32.Create(1024 * 1024 * 64);
 
   FServer := TSuperSocketServer.Create(true);
   FServer.OnConnected := on_server_connected;
@@ -96,7 +95,26 @@ end;
 
 function TForm1.GetPacketClone(APacket: PPacket): PPacket;
 begin
-  Result := FMemoryPool.GetPacketClone(APacket);
+  if APacket = nil then begin
+    {$IFDEF DEBUG}
+    Trace('TMemoryPoolUnit.GetPacketClone - APacket = nil');
+    {$ENDIF}
+
+    Result := nil;
+    Exit;
+  end;
+
+  if APacket^.PacketSize > PACKET_SIZE then begin
+    {$IFDEF DEBUG}
+    Trace( Format('TMemoryPoolUnit.GetPacketClone - PacketSize: %d, PacketType: %d', [APacket^.PacketSize, APacket^.PacketType]) );
+    {$ENDIF}
+
+    Result := nil;
+    Exit;
+  end;
+
+  Result := FMemoryPool.GetMem(APacket^.PacketSize);
+  Move(APacket^, Result^, APacket^.PacketSize);
 end;
 
 function TForm1.make_packet: PPacket;

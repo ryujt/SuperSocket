@@ -124,7 +124,6 @@
         <DCCReference Include="_fmMain.pas">
             <Form>Form1</Form>
         </DCCReference>
-        <DCCReference Include="Globals.pas"/>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -153,6 +152,12 @@
             <Deployment Version="3">
                 <DeployFile LocalName="test_transmition.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win64">
+                        <RemoteName>test_transmition.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="test_transmition.exe" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Win32">
                         <RemoteName>test_transmition.exe</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>

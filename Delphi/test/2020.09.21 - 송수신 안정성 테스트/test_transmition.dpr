@@ -2,8 +2,7 @@ program test_transmition;
 
 uses
   Vcl.Forms,
-  _fmMain in '_fmMain.pas' {Form1},
-  Globals in 'Globals.pas';
+  _fmMain in '_fmMain.pas' {Form1};
 
 {$R *.res}
 
