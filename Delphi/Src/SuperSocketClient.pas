@@ -153,13 +153,18 @@ function TIODataPool.Get: PIOData;
 begin
   if not FQueue.Pop( Pointer(Result) ) then New(Result);
   FillChar(Result^.Overlapped, SizeOf(Overlapped), 0);
+  Result^.wsaBuffer.len := 0;
   Result^.wsaBuffer.buf := nil;
 end;
 
 procedure TIODataPool.Release(AIOData: PIOData);
 begin
-  if AIOData^.wsaBuffer.buf <> nil then FreeMem(AIOData^.wsaBuffer.buf);
-  FQueue.Push(AIOData);
+  try
+    if AIOData^.wsaBuffer.buf <> nil then FreeMem(AIOData^.wsaBuffer.buf);
+    FQueue.Push(AIOData);
+  except
+    on E : Exception do Trace( Format('AIOData^.Status: %d', [Integer(AIOData^.Status)]) );
+  end;
 end;
 
 { TCompletePort }
@@ -491,7 +496,6 @@ begin
       {$ENDIF}
 
       do_DisconnectWithEvent;
-      FreeMem(packet);
       FIODataPool.Release(pData);
     end;
   end;
