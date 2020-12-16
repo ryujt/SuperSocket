@@ -3,7 +3,7 @@ unit _fmMain;
 interface
 
 uses
-  SuperSocket, ValueList,
+  SuperSocketClient, SuperSocketUtils,
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls;
 
@@ -36,8 +36,7 @@ implementation
 
 procedure TfmMain.btConnectClick(Sender: TObject);
 begin
-  if FSocket.Connect('127.0.0.1', 1234) = false then
-    MessageDlg('Connection Error!!!.', mtError, [mbOk], 0);
+  FSocket.Connect('127.0.0.1', 1234);
 end;
 
 procedure TfmMain.btDisconnectClick(Sender: TObject);
@@ -48,27 +47,13 @@ end;
 
 procedure TfmMain.do_SendText(AText: string);
 var
-  Data : pointer;
-  Size : integer;
-  ValueList : TValueList;
   PacketPtr : PPacket;
 begin
-  ValueList := TValueList.Create;
+  PacketPtr := TPacket.GetPacket(0, AText);
   try
-    ValueList.Text := AText;
-    ValueList.SaveToBuffer(Data, Size);
-    try
-      PacketPtr := TPacket.GetPacket(pdNone, 0, Data, Size);
-      try
-        FSocket.Send(PacketPtr);
-      finally
-        FreeMem(PacketPtr);
-      end;
-    finally
-      if Data <> nil then FreeMem(Data);      
-    end;
+    FSocket.Send(PacketPtr);
   finally
-    ValueList.Free;
+    FreeMem(PacketPtr);
   end;
 end;
 
@@ -83,7 +68,7 @@ end;
 
 procedure TfmMain.FormCreate(Sender: TObject);
 begin
-  FSocket := TSuperSocketClient.Create(Self);
+  FSocket := TSuperSocketClient.Create;
   FSocket.OnConnected := on_Connected;
   FSocket.OnDisconnected := on_Disconnected;
   FSocket.OnReceived := on_Received;
@@ -105,16 +90,8 @@ begin
 end;
 
 procedure TfmMain.on_Received(Sender:TObject; APacket:PPacket);
-var
-  Packet : TValueList;
 begin
-  Packet := TValueList.Create;
-  try
-    Packet.LoadFromBuffer(APacket^.Data, APacket^.DataSize);
-    moMsg.Lines.Add(Packet.Values['Msg'])
-  finally
-    Packet.Free;
-  end;
+  moMsg.Lines.Add(APacket^.Text);
 end;
 
 end.

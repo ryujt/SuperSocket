@@ -3,7 +3,7 @@ unit _fmMain;
 interface
 
 uses
-  DebugTools, SuperSocket,
+  DebugTools, SuperSocketServer, SuperSocketUtils,
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons;
 
@@ -28,7 +28,7 @@ implementation
 
 procedure TfmMain.FormCreate(Sender: TObject);
 begin
-  FSuperSocketServer := TSuperSocketServer.Create(Self);
+  FSuperSocketServer := TSuperSocketServer.Create;
   FSuperSocketServer.OnConnected := on_FSuperSocketServer_Connected;
   FSuperSocketServer.OnDisconnected := on_FSuperSocketServer_Disconnected;
   FSuperSocketServer.OnReceived := on_FSuperSocketServer_Received;
@@ -53,7 +53,7 @@ end;
 
 procedure TfmMain.on_FSuperSocketServer_Received(AConnection: TConnection; APacket: PPacket);
 begin
-  Trace( Format('TfmMain.on_FSuperSocketServer_Received - APacket^.Size: %d', [APacket^.Size]) );
+  Trace( Format('TfmMain.on_FSuperSocketServer_Received - APacket^.Size: %d', [APacket^.PacketSize]) );
   FSuperSocketServer.SendToAll(APacket);
 end;
 
