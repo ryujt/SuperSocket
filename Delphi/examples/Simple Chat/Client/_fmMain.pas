@@ -23,6 +23,7 @@ type
     procedure on_Connected(Sender:TObject);
     procedure on_Disconnected(Sender:TObject);
     procedure on_Received(Sender:TObject; APacket:PPacket);
+
     procedure do_SendText(AText:string);
   public
   end;
@@ -61,7 +62,7 @@ procedure TfmMain.edMsgKeyPress(Sender: TObject; var Key: Char);
 begin
   if Key = #13 then begin
     Key := #0;
-    do_SendText('Msg=' + edMsg.Text);
+    do_SendText(edMsg.Text);
     edMsg.Text := '';
   end;
 end;
