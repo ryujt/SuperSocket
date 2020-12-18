@@ -25,17 +25,6 @@ var
 
 implementation
 
-function GetPacketClone(AMemoryPool: TMemoryPool; APacket: PPacket): PPacket;
-begin
-  if APacket^.PacketSize = 0 then begin
-    Result := nil;
-    Exit;
-  end;
-
-  AMemoryPool.GetMem(Pointer(Result), APacket^.PacketSize);
-  APacket^.Clone(Result);
-end;
-
 {$R *.dfm}
 
 procedure TfmMain.FormCreate(Sender: TObject);
@@ -69,7 +58,7 @@ procedure TfmMain.on_FSuperSocketServer_Received(AConnection: TConnection; APack
 var
   packet : PPacket;
 begin
-  packet := GetPacketClone(FMemoryPool, APacket);
+  packet := FMemoryPool.GetClone(APacket, APacket^.PacketSize);
   FSuperSocketServer.SendToAll(packet);
 end;
 
