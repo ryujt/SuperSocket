@@ -29,6 +29,20 @@ type
     PacketType : byte;
   end;
 
+  TIntegerPacket = packed record
+    PacketSize : word;
+    PacketType : byte;
+    Data : integer;
+  end;
+  PIntegerPacket = ^TIntegerPacket;
+
+  TInt64 = packed record
+    PacketSize : word;
+    PacketType : byte;
+    Data : int64;
+  end;
+  PInt64 = ^TInt64;
+
   {*
     [Packet] = [PacketSize:word] [PacketType: byte] [Data]
   }
