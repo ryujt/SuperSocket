@@ -773,7 +773,10 @@ begin
 
       FIODataPool.Release(pData);
 
-      AConnection.Disconnect;
+      // TODO:
+      // 접속 처리 도중에 정상적인 경우인데도 에러가 발생할 수 있음
+      // 소켓 초기화가 완전히 종료된 이후부터 Disconnect 처리되도록 수정해야 함
+      // AConnection.Disconnect;
     end;
   end;
 end;

@@ -361,10 +361,13 @@ end;
 
 procedure TCompletePort.on_FSimpleThread_Execute(ASimpleThread: TSimpleThread);
 var
+  {$IFDEF DEBUG}
+  LastError : integer;
+  {$ENDIF}
+
   pData : PIOData;
   Transferred : DWord;
   Key : NativeUInt;
-  LastError : integer;
   isGetOk, isCondition : boolean;
 begin
   while not ASimpleThread.Terminated do begin
@@ -495,8 +498,12 @@ begin
       Trace(Format('TSuperSocketClient.Send - %s', [SysErrorMessage(LastError)]));
       {$ENDIF}
 
-      do_DisconnectWithEvent;
       FIODataPool.Release(pData);
+
+      // TODO:
+      // 접속 처리 도중에 정상적인 경우인데도 에러가 발생할 수 있음
+      // 소켓 초기화가 완전히 종료된 이후부터 Disconnect 처리되도록 수정해야 함
+      // do_DisconnectWithEvent;
     end;
   end;
 end;
@@ -530,7 +537,7 @@ begin
         if FCompletePort.Connected = false then Continue;
 
         if InterlockedIncrement(FCompletePort.IdleCount) > (MAX_IDLE_MS div 1000) then begin
-          FCompletePort.IdleCount := 0;
+          InterlockedExchange(FCompletePort.IdleCount, 0);
           FCompletePort.IdleCountTimeout;
 
           {$IFDEF DEBUG}
