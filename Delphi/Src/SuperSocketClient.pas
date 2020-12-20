@@ -196,7 +196,7 @@ begin
   FSocket := INVALID_SOCKET;
   FUseNagel := false;
   FOldTick := 0;
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   FCompletionPort := CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
   FPacketReader := TPacketReader.Create;
@@ -252,7 +252,7 @@ begin
 
   FPacketReader.Clear;
 
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   do_Disconnect;
 
@@ -314,7 +314,7 @@ procedure TCompletePort.do_Receive(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   if FPacketReader.Write(AData, ASize) = false then begin
     do_DisconnectWithEvent;
@@ -527,7 +527,9 @@ begin
     procedure (ASimpleThread:TSimpleThread)
     begin
       while ASimpleThread.Terminated = false do begin
-        if FCompletePort.Connected and (InterlockedIncrement(FCompletePort.IdleCount) > 5) then begin
+        if FCompletePort.Connected = false then Continue;
+
+        if InterlockedIncrement(FCompletePort.IdleCount) > (MAX_IDLE_MS div 1000) then begin
           FCompletePort.IdleCount := 0;
           FCompletePort.IdleCountTimeout;
 
@@ -538,7 +540,7 @@ begin
 
         Send(@NilPacket);
 
-        ASimpleThread.Sleep(MAX_IDLE_MS div 5);
+        ASimpleThread.Sleep(1000);
       end;
     end
   );

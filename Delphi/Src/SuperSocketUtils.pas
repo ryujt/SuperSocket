@@ -17,7 +17,7 @@ const
   /// Buffer size of TPacketReader (+ safe zone)
   PACKETREADER_BUFFER_SIZE = PACKET_SIZE * 2;
 
-  MAX_IDLE_MS = 20000;
+  MAX_IDLE_MS = 30000;
 
   ERROR_CONNECT = -1;
 

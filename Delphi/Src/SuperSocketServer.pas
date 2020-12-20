@@ -349,7 +349,7 @@ begin
   IsLogined := false;
   UserData.Text := '';
 
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   FPacketReader.Clear;
 
@@ -360,7 +360,7 @@ procedure TConnection.do_PacketIn(AData: pointer; ASize: integer);
 var
   PacketPtr : PPacket;
 begin
-  IdleCount := 0;
+  InterlockedExchange(IdleCount, 0);
 
   if FPacketReader.Write(AData, ASize) = false then begin
     Disconnect;
@@ -985,7 +985,7 @@ begin
           //Trace( Format('TConnection - IdleCount (%d, %d)', [Connection.ID, Connection.IdleCount]) );
           {$ENDIF}
 
-          if InterlockedIncrement(Connection.IdleCount) > 4 then begin
+          if InterlockedIncrement(Connection.IdleCount) > (MAX_IDLE_MS div 1000) then begin
             {$IFDEF DEBUG}
             Trace( Format('TSuperSocketServer - Disconnected for IdleCount (%s, %d)', [Connection.UserID, Connection.IdleCount]) );
             {$ENDIF}
@@ -994,7 +994,7 @@ begin
           end;
         end;
 
-        Sleep(MAX_IDLE_MS div 4);
+        Sleep(1000);
       end;
     end
   );
